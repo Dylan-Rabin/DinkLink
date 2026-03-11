@@ -11,6 +11,9 @@ struct SportCard: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text(title)
                     .dinkHeading(18, color: AppTheme.ink)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text(subtitle)
                     .dinkBody(12, color: AppTheme.graphite.opacity(0.88))

@@ -19,11 +19,11 @@ struct OnboardingFlowView: View {
                 .offset(x: 160, y: -260)
 
             VStack(alignment: .leading, spacing: 24) {
-                Text("DinkLink")
+                Text("Welcome to The DinkLink")
                     .dinkHeading(34, color: AppTheme.neon)
 
                 Text("Smart paddle training for sharper hands, cleaner contacts, and match-ready confidence.")
-                    .dinkBody(14, color: AppTheme.smoke.opacity(0.82))
+                    .dinkBody(18, color: AppTheme.smoke.opacity(0.82))
 
                 Group {
                     switch viewModel.currentStep {
@@ -59,12 +59,12 @@ struct OnboardingFlowView: View {
     }
 
     private var introStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 20) {
             Text("Train smarter.")
                 .dinkHeading(24, color: AppTheme.smoke)
 
             Text("Set up your player profile, pair a paddle, and launch into live game modes backed by mocked sensor data.")
-                .dinkBody(14, color: AppTheme.ash)
+                .dinkBody(16, color: AppTheme.ash)
 
             Button("Build My Profile") {
                 viewModel.advance()
@@ -141,7 +141,7 @@ struct OnboardingFlowView: View {
 
             if viewModel.availableDevices.isEmpty {
                 Text("Scan for nearby smart paddles to connect a mock training device.")
-                    .dinkBody(14, color: AppTheme.ash)
+                    .dinkBody(16, color: AppTheme.ash)
             } else {
                 ForEach(viewModel.availableDevices) { device in
                     Button {
