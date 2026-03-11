@@ -24,6 +24,8 @@ final class MockBluetoothService: ObservableObject, BluetoothServiceProtocol {
     private var streamTimer: Timer?
 
     func scanForDevices() async -> [PaddleDevice] {
+        // External data seam: a production build would replace this mock list with
+        // real device discovery or an API-backed hardware lookup.
         try? await Task.sleep(for: .milliseconds(600))
         discoveredDevices = [
             PaddleDevice(name: "DL Pro Paddle", batteryLevel: 92),
@@ -66,6 +68,8 @@ final class MockBluetoothService: ObservableObject, BluetoothServiceProtocol {
 
     func startStreaming() {
         guard streamTimer == nil else { return }
+        // This timer mimics a live telemetry feed so the UI can react as if
+        // paddle data were arriving continuously from a connected service.
         streamTimer = Timer.scheduledTimer(
             timeInterval: 0.75,
             target: self,

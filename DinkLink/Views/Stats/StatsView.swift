@@ -44,6 +44,7 @@ struct StatsView: View {
                                 title: "Session Trend",
                                 subtitle: "Average swing speed across your recent sessions."
                             ) {
+                                // This is where persisted session data gets visualized for the user.
                                 Chart(recentSessionPoints) { point in
                                     AreaMark(
                                         x: .value("Session", point.label),

@@ -64,6 +64,8 @@ final class LiveGameViewModel: ObservableObject {
     }
 
     func start() {
+        // Interactive feature: the view model subscribes to the live shot stream and
+        // updates scoring, feedback, and charts in near real time as shots arrive.
         bluetoothService.onShotEvent = { [weak self] shot in
             self?.ingest(shot: shot)
         }
@@ -108,6 +110,8 @@ final class LiveGameViewModel: ObservableObject {
     private func ingest(shot: ShotEvent) {
         guard !isSessionComplete else { return }
 
+        // Each incoming shot fans out into multiple pieces of UI state so the session
+        // feels live rather than waiting for a round to finish before updating.
         latestSwingSpeed = shot.speedMPH
         latestFeedback = GameEngine.feedback(for: shot)
 
