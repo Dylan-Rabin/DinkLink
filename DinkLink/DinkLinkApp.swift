@@ -1,10 +1,4 @@
-//
-//  DinkLinkApp.swift
-//  DinkLink
-//
-//  Created by Rabin, Dylan on 3/11/26.
-//
-
+import SwiftData
 import SwiftUI
 
 @main
@@ -13,5 +7,6 @@ struct DinkLinkApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(for: [PlayerProfile.self, StoredGameSession.self])
     }
 }
