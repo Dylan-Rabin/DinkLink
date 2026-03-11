@@ -44,19 +44,6 @@ struct InviteSetupView: View {
 
             Spacer()
 
-            NavigationLink(isActive: $startSession) {
-                LiveGameView(
-                    viewModel: LiveGameViewModel(
-                        mode: mode,
-                        players: players,
-                        bluetoothService: bluetoothService,
-                        persistenceService: persistenceService
-                    )
-                )
-            } label: {
-                EmptyView()
-            }
-
             Button("Start Session") {
                 startSession = true
             }
@@ -69,6 +56,16 @@ struct InviteSetupView: View {
         .background(AppTheme.ink.ignoresSafeArea())
         .navigationTitle("Session Setup")
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .navigationDestination(isPresented: $startSession) {
+            LiveGameView(
+                viewModel: LiveGameViewModel(
+                    mode: mode,
+                    players: players,
+                    bluetoothService: bluetoothService,
+                    persistenceService: persistenceService
+                )
+            )
+        }
     }
 
     private var players: [Player] {

@@ -29,9 +29,22 @@
 		A1F167022F61B626003B3F6A /* DinkLinkUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DinkLinkUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A1F167462F61C5EC003B3F6A /* Exceptions for "DinkLink" folder in "DinkLink" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A1F166EA2F61B625003B3F6A /* DinkLink */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A1F166ED2F61B625003B3F6A /* DinkLink */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A1F167462F61C5EC003B3F6A /* Exceptions for "DinkLink" folder in "DinkLink" target */,
+			);
 			path = DinkLink;
 			sourceTree = "<group>";
 		};
@@ -43,6 +56,11 @@
 		A1F167052F61B626003B3F6A /* DinkLinkUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = DinkLinkUITests;
+			sourceTree = "<group>";
+		};
+		A1F1673E2F61C3D9003B3F6A /* Fonts */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Fonts;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -79,6 +97,7 @@
 				A1F166FB2F61B626003B3F6A /* DinkLinkTests */,
 				A1F167052F61B626003B3F6A /* DinkLinkUITests */,
 				A1F166EC2F61B625003B3F6A /* Products */,
+				A1F1673E2F61C3D9003B3F6A /* Fonts */,
 			);
 			sourceTree = "<group>";
 		};
@@ -109,6 +128,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				A1F166ED2F61B625003B3F6A /* DinkLink */,
+				A1F1673E2F61C3D9003B3F6A /* Fonts */,
 			);
 			name = DinkLink;
 			packageProductDependencies = (
@@ -400,6 +420,7 @@
 				DEVELOPMENT_TEAM = 2SDJX7ASBA;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DinkLink/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -432,6 +453,7 @@
 				DEVELOPMENT_TEAM = 2SDJX7ASBA;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DinkLink/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

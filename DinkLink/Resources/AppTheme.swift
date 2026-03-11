@@ -7,6 +7,8 @@ enum AppTheme {
     static let steel = Color(hex: 0x2A2A2A)
     static let ash = Color(hex: 0xB7B7B7)
     static let smoke = Color(hex: 0xE7E7E7)
+    static let deepShadow = Color(hex: 0x050505)
+    static let mutedGlow = Color(hex: 0xD6F51D, opacity: 0.28)
 }
 
 extension Font {
@@ -28,6 +30,16 @@ extension View {
     func dinkBody(_ size: CGFloat = 15, color: Color = AppTheme.smoke) -> some View {
         font(.dinkBody(size))
             .foregroundStyle(color)
+    }
+
+    func appScreenGradient() -> some View {
+        background(
+            LinearGradient(
+                colors: [AppTheme.deepShadow, AppTheme.graphite, AppTheme.steel],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
     }
 }
 

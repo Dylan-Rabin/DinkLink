@@ -45,11 +45,17 @@ struct HomeView: View {
         NavigationStack {
             ZStack {
                 LinearGradient(
-                    colors: [AppTheme.ink, AppTheme.graphite, AppTheme.steel],
+                    colors: [AppTheme.deepShadow, AppTheme.graphite, AppTheme.steel, AppTheme.mutedGlow],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
                 .ignoresSafeArea()
+
+                Circle()
+                    .fill(AppTheme.mutedGlow)
+                    .frame(width: 340, height: 340)
+                    .blur(radius: 110)
+                    .offset(x: 160, y: -220)
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
@@ -80,7 +86,13 @@ struct HomeView: View {
                             }
                             .dinkBody(13, color: AppTheme.smoke)
                             .padding()
-                            .background(AppTheme.steel)
+                            .background(
+                                LinearGradient(
+                                    colors: [AppTheme.steel, AppTheme.graphite],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
                             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
                     }

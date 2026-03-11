@@ -6,11 +6,17 @@ struct OnboardingFlowView: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [AppTheme.ink, AppTheme.graphite, AppTheme.steel],
+                colors: [AppTheme.deepShadow, AppTheme.graphite, AppTheme.steel, AppTheme.mutedGlow],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
+
+            Circle()
+                .fill(AppTheme.mutedGlow)
+                .frame(width: 320, height: 320)
+                .blur(radius: 100)
+                .offset(x: 160, y: -260)
 
             VStack(alignment: .leading, spacing: 24) {
                 Text("DinkLink")
@@ -33,7 +39,13 @@ struct OnboardingFlowView: View {
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(AppTheme.steel.opacity(0.96))
+                .background(
+                    LinearGradient(
+                        colors: [AppTheme.steel.opacity(0.98), AppTheme.graphite.opacity(0.96)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
                 .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -91,7 +103,13 @@ struct OnboardingFlowView: View {
             }
             .pickerStyle(.menu)
             .padding()
-            .background(AppTheme.graphite)
+            .background(
+                LinearGradient(
+                    colors: [AppTheme.graphite, AppTheme.steel],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             Button("Continue to Paddle Sync") {
@@ -141,7 +159,13 @@ struct OnboardingFlowView: View {
                                 .foregroundStyle(AppTheme.neon)
                         }
                         .padding()
-                        .background(AppTheme.graphite)
+                        .background(
+                            LinearGradient(
+                                colors: [AppTheme.graphite, AppTheme.steel],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
                     .buttonStyle(.plain)

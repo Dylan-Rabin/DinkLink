@@ -4,25 +4,39 @@ struct LiveGameView: View {
     @ObservedObject var viewModel: LiveGameViewModel
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                hero
-                playerSwitcher
-                liveMetrics
+        ZStack {
+            LinearGradient(
+                colors: [AppTheme.deepShadow, AppTheme.graphite, AppTheme.steel, AppTheme.mutedGlow],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
-                if viewModel.activeMode == .theRealDeal {
-                    rallyControls
+            Circle()
+                .fill(AppTheme.mutedGlow)
+                .frame(width: 300, height: 300)
+                .blur(radius: 110)
+                .offset(x: 170, y: -220)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    hero
+                    playerSwitcher
+                    liveMetrics
+
+                    if viewModel.activeMode == .theRealDeal {
+                        rallyControls
+                    }
+
+                    scoreboard
+
+                    if viewModel.isSessionComplete {
+                        completionCard
+                    }
                 }
-
-                scoreboard
-
-                if viewModel.isSessionComplete {
-                    completionCard
-                }
+                .padding(20)
             }
-            .padding(20)
         }
-        .background(AppTheme.ink)
         .navigationTitle(viewModel.mode.rawValue)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
@@ -115,7 +129,13 @@ struct LiveGameView: View {
             }
         }
         .padding()
-        .background(AppTheme.steel)
+        .background(
+            LinearGradient(
+                colors: [AppTheme.steel, AppTheme.graphite],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .dinkBody(14, color: AppTheme.smoke)
     }
@@ -138,7 +158,13 @@ struct LiveGameView: View {
             }
         }
         .padding()
-        .background(AppTheme.steel)
+        .background(
+            LinearGradient(
+                colors: [AppTheme.steel, AppTheme.graphite],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
@@ -157,7 +183,13 @@ struct LiveGameView: View {
             }
         }
         .padding()
-        .background(AppTheme.steel)
+        .background(
+            LinearGradient(
+                colors: [AppTheme.steel, AppTheme.graphite],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .dinkBody(14, color: AppTheme.smoke)
     }
