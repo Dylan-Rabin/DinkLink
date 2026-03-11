@@ -15,8 +15,9 @@ struct StatsView: View {
                 }
                 .padding(20)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(AppTheme.ink)
             .navigationTitle("\(profile.name)'s Stats")
+            .toolbarColorScheme(.dark, for: .navigationBar)
         }
     }
 
@@ -41,14 +42,13 @@ struct StatsView: View {
     private func statCard(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.headline)
+                .dinkHeading(18, color: AppTheme.smoke)
             Text(value)
-                .font(.system(size: 34, weight: .black, design: .rounded))
-                .foregroundStyle(.orange)
+                .dinkBody(22, color: AppTheme.neon)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
-        .background(.white)
+        .background(AppTheme.steel)
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 

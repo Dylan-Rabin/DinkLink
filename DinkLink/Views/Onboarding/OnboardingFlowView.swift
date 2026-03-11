@@ -6,7 +6,7 @@ struct OnboardingFlowView: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color.black, Color(red: 0.05, green: 0.22, blue: 0.18), Color(red: 0.89, green: 0.4, blue: 0.1)],
+                colors: [AppTheme.ink, AppTheme.graphite, AppTheme.steel],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -14,12 +14,10 @@ struct OnboardingFlowView: View {
 
             VStack(alignment: .leading, spacing: 24) {
                 Text("DinkLink")
-                    .font(.largeTitle.weight(.black))
-                    .foregroundStyle(.white)
+                    .dinkHeading(34, color: AppTheme.neon)
 
                 Text("Smart paddle training for sharper hands, cleaner contacts, and match-ready confidence.")
-                    .font(.headline)
-                    .foregroundStyle(.white.opacity(0.82))
+                    .dinkBody(14, color: AppTheme.smoke.opacity(0.82))
 
                 Group {
                     switch viewModel.currentStep {
@@ -35,8 +33,12 @@ struct OnboardingFlowView: View {
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.white.opacity(0.09))
+                .background(AppTheme.steel.opacity(0.96))
                 .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(AppTheme.neon.opacity(0.2), lineWidth: 1)
+                )
 
                 Spacer()
             }
@@ -47,31 +49,32 @@ struct OnboardingFlowView: View {
     private var introStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Train smarter.")
-                .font(.title.weight(.bold))
-                .foregroundStyle(.white)
+                .dinkHeading(24, color: AppTheme.smoke)
 
             Text("Set up your player profile, pair a paddle, and launch into live game modes backed by mocked sensor data.")
-                .foregroundStyle(.white.opacity(0.8))
+                .dinkBody(14, color: AppTheme.ash)
 
             Button("Build My Profile") {
                 viewModel.advance()
             }
             .buttonStyle(.borderedProminent)
-            .tint(.white)
-            .foregroundStyle(.black)
+            .tint(AppTheme.neon)
+            .foregroundStyle(AppTheme.ink)
         }
     }
 
     private var profileStep: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Player Profile")
-                .font(.title2.weight(.bold))
-                .foregroundStyle(.white)
+                .dinkHeading(22, color: AppTheme.smoke)
 
             TextField("Player name", text: $viewModel.playerName)
+                .font(.dinkBody(15))
+                .foregroundStyle(AppTheme.ink)
+                .tint(AppTheme.ink)
                 .textInputAutocapitalization(.words)
                 .padding()
-                .background(.white)
+                .background(AppTheme.smoke)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             Picker("Dominant Arm", selection: $viewModel.dominantArm) {
@@ -88,24 +91,25 @@ struct OnboardingFlowView: View {
             }
             .pickerStyle(.menu)
             .padding()
-            .background(.white.opacity(0.14))
+            .background(AppTheme.graphite)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             Button("Continue to Paddle Sync") {
                 viewModel.advance()
             }
             .buttonStyle(.borderedProminent)
+            .tint(AppTheme.neon)
+            .foregroundStyle(AppTheme.ink)
             .disabled(!viewModel.canContinueFromProfile)
         }
-        .foregroundStyle(.white)
+        .dinkBody(14, color: AppTheme.smoke)
     }
 
     private var paddleSyncStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Paddle Sync")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(.white)
+                    .dinkHeading(22, color: AppTheme.smoke)
                 Spacer()
                 Button(viewModel.isScanning ? "Scanning..." : "Scan") {
                     Task {
@@ -113,12 +117,13 @@ struct OnboardingFlowView: View {
                     }
                 }
                 .buttonStyle(.bordered)
+                .tint(AppTheme.neon)
                 .disabled(viewModel.isScanning)
             }
 
             if viewModel.availableDevices.isEmpty {
                 Text("Scan for nearby smart paddles to connect a mock training device.")
-                    .foregroundStyle(.white.opacity(0.75))
+                    .dinkBody(14, color: AppTheme.ash)
             } else {
                 ForEach(viewModel.availableDevices) { device in
                     Button {
@@ -127,29 +132,30 @@ struct OnboardingFlowView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(device.name)
-                                    .font(.headline)
+                                    .dinkHeading(16, color: AppTheme.smoke)
                                 Text("\(device.batteryLevel)% battery")
-                                    .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.7))
+                                    .dinkBody(12, color: AppTheme.ash)
                             }
                             Spacer()
                             Image(systemName: viewModel.selectedDeviceID == device.id ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(AppTheme.neon)
                         }
                         .padding()
-                        .background(.white.opacity(0.1))
+                        .background(AppTheme.graphite)
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.white)
                 }
 
                 Button(viewModel.isConnecting ? "Connecting..." : "Connect Paddle") {
                     Task {
                         await viewModel.connectSelectedPaddle()
-                        viewModel.advance()
+                        viewModel.completeOnboarding()
                     }
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(AppTheme.neon)
+                .foregroundStyle(AppTheme.ink)
                 .disabled(viewModel.selectedDevice == nil || viewModel.isConnecting)
             }
         }

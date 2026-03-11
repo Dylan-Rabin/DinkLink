@@ -22,9 +22,10 @@ struct LiveGameView: View {
             }
             .padding(20)
         }
-        .background(Color(.systemBackground))
+        .background(AppTheme.ink)
         .navigationTitle(viewModel.mode.rawValue)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .task {
             viewModel.start()
         }
@@ -36,40 +37,38 @@ struct LiveGameView: View {
     private var hero: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(viewModel.roundBanner)
-                .font(.title2.weight(.bold))
+                .dinkHeading(22, color: AppTheme.ink)
 
             if viewModel.activeMode.isTimed {
                 Text("Timer: \(viewModel.secondsRemaining)s")
-                    .font(.headline.monospacedDigit())
+                    .dinkBody(14, color: AppTheme.ink)
             } else {
                 Text("Elapsed: \(viewModel.elapsedSeconds)s")
-                    .font(.headline.monospacedDigit())
+                    .dinkBody(14, color: AppTheme.ink)
             }
 
             Text("Latest hit: \(formatted(viewModel.latestSwingSpeed)) mph")
-                .foregroundStyle(.secondary)
+                .dinkBody(13, color: AppTheme.graphite)
 
             Text(viewModel.latestFeedback)
-                .font(.headline)
-                .foregroundStyle(.orange)
+                .dinkBody(14, color: AppTheme.ink)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
         .background(
             LinearGradient(
-                colors: [.black, .orange.opacity(0.85)],
+                colors: [AppTheme.neon, AppTheme.ash],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
         )
-        .foregroundStyle(.white)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
     private var playerSwitcher: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Active Player")
-                .font(.headline)
+                .dinkHeading(18, color: AppTheme.smoke)
 
             Picker("Player", selection: $viewModel.activePlayerIndex) {
                 ForEach(Array(viewModel.playerMetrics.enumerated()), id: \.offset) { index, metrics in
@@ -83,8 +82,10 @@ struct LiveGameView: View {
                     viewModel.switchActivePlayer()
                 }
                 .buttonStyle(.bordered)
+                .tint(AppTheme.neon)
             }
         }
+        .dinkBody(14, color: AppTheme.smoke)
     }
 
     private var liveMetrics: some View {
@@ -92,7 +93,7 @@ struct LiveGameView: View {
 
         return VStack(alignment: .leading, spacing: 12) {
             Text("Live Sensor Summary")
-                .font(.headline)
+                .dinkHeading(18, color: AppTheme.smoke)
 
             metricRow(title: "Average Swing Speed", value: "\(formatted(stats.average)) mph")
             metricRow(title: "Max Swing Speed", value: "\(formatted(stats.max)) mph")
@@ -114,34 +115,37 @@ struct LiveGameView: View {
             }
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(AppTheme.steel)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .dinkBody(14, color: AppTheme.smoke)
     }
 
     private var rallyControls: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Manual Rally Tracking")
-                .font(.headline)
+                .dinkHeading(18, color: AppTheme.smoke)
 
             Text("Current rally hits: \(viewModel.currentRallyHits)")
-                .foregroundStyle(.secondary)
+                .dinkBody(13, color: AppTheme.ash)
 
             ForEach(Array(viewModel.playerMetrics.enumerated()), id: \.offset) { index, metrics in
                 Button("Award Point to \(metrics.player.name)") {
                     viewModel.awardPoint(to: index)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(AppTheme.neon)
+                .foregroundStyle(AppTheme.ink)
             }
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(AppTheme.steel)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var scoreboard: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Scoreboard")
-                .font(.headline)
+                .dinkHeading(18, color: AppTheme.smoke)
 
             ForEach(viewModel.playerMetrics) { metrics in
                 HStack {
@@ -153,23 +157,25 @@ struct LiveGameView: View {
             }
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(AppTheme.steel)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .dinkBody(14, color: AppTheme.smoke)
     }
 
     private var completionCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Session Complete")
-                .font(.title3.weight(.bold))
+                .dinkHeading(20, color: AppTheme.ink)
             Text("\(viewModel.sessionWinner) wins.")
+                .dinkBody(14, color: AppTheme.ink)
             if viewModel.mode == .pickleCup {
                 Text("Cup score: \(viewModel.cupWins.map(String.init).joined(separator: " - "))")
-                    .foregroundStyle(.secondary)
+                    .dinkBody(13, color: AppTheme.graphite)
             }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.green.opacity(0.14))
+        .background(AppTheme.neon)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
@@ -178,7 +184,7 @@ struct LiveGameView: View {
             Text(title)
             Spacer()
             Text(value)
-                .font(.headline.monospacedDigit())
+                .dinkBody(14, color: AppTheme.neon)
         }
     }
 

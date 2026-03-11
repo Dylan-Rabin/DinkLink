@@ -10,28 +10,26 @@ struct SportCard: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 12) {
                 Text(title)
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(.white)
+                    .dinkHeading(18, color: AppTheme.ink)
 
                 Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.8))
+                    .dinkBody(12, color: AppTheme.graphite.opacity(0.88))
 
                 Spacer()
 
                 HStack {
                     Text("Start")
-                        .font(.footnote.weight(.semibold))
+                        .dinkBody(12, color: AppTheme.ink)
                     Spacer()
                     Image(systemName: "arrow.right.circle.fill")
+                        .foregroundStyle(AppTheme.ink)
                 }
-                .foregroundStyle(.white)
             }
             .padding(20)
             .frame(maxWidth: .infinity, minHeight: 154, alignment: .leading)
             .background(
                 LinearGradient(
-                    colors: [accent.opacity(0.95), .black.opacity(0.8)],
+                    colors: [accent, AppTheme.smoke],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
@@ -39,7 +37,7 @@ struct SportCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(.white.opacity(0.12), lineWidth: 1)
+                    .stroke(AppTheme.ink.opacity(0.08), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

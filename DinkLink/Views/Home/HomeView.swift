@@ -27,7 +27,7 @@ struct MainTabView: View {
                     Label("Profile", systemImage: "person.crop.circle")
                 }
         }
-        .tint(.orange)
+        .tint(AppTheme.neon)
     }
 }
 
@@ -45,7 +45,7 @@ struct HomeView: View {
         NavigationStack {
             ZStack {
                 LinearGradient(
-                    colors: [Color(red: 0.06, green: 0.09, blue: 0.16), .black, Color(red: 0.18, green: 0.41, blue: 0.32)],
+                    colors: [AppTheme.ink, AppTheme.graphite, AppTheme.steel],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
@@ -55,10 +55,9 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Welcome back, \(profile.name)")
-                                .font(.largeTitle.weight(.black))
-                                .foregroundStyle(.white)
+                                .dinkHeading(30, color: AppTheme.neon)
                             Text("Synced paddle: \(bluetoothService.connectedDevice?.name ?? profile.syncedPaddleName)")
-                                .foregroundStyle(.white.opacity(0.7))
+                                .dinkBody(13, color: AppTheme.ash)
                         }
 
                         LazyVGrid(columns: grid, spacing: 16) {
@@ -79,10 +78,9 @@ struct HomeView: View {
                                 Spacer()
                                 Text("\(device.batteryLevel)%")
                             }
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .dinkBody(13, color: AppTheme.smoke)
                             .padding()
-                            .background(.white.opacity(0.08))
+                            .background(AppTheme.steel)
                             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
                     }
@@ -103,13 +101,13 @@ struct HomeView: View {
     private func color(for mode: GameMode) -> Color {
         switch mode {
         case .dinkSinks:
-            return .teal
+            return AppTheme.neon
         case .volleyWallies:
-            return .orange
+            return AppTheme.ash
         case .theRealDeal:
-            return .red
+            return AppTheme.smoke
         case .pickleCup:
-            return .green
+            return AppTheme.neon.opacity(0.75)
         }
     }
 }

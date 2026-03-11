@@ -18,12 +18,10 @@ struct ContentView: View {
                     bluetoothService: bluetoothService
                 )
             } else {
-                OnboardingFlowView(
-                    viewModel: OnboardingViewModel(
-                        bluetoothService: bluetoothService,
-                        persistenceService: SwiftDataPersistenceService(context: modelContext),
-                        existingProfile: profiles.first
-                    )
+                OnboardingRootView(
+                    bluetoothService: bluetoothService,
+                    existingProfile: profiles.first,
+                    persistenceService: SwiftDataPersistenceService(context: modelContext)
                 )
             }
         }
@@ -32,6 +30,28 @@ struct ContentView: View {
                 persistenceService: SwiftDataPersistenceService(context: modelContext)
             )
         }
+    }
+}
+
+private struct OnboardingRootView: View {
+    @StateObject private var viewModel: OnboardingViewModel
+
+    init(
+        bluetoothService: MockBluetoothService,
+        existingProfile: PlayerProfile?,
+        persistenceService: PersistenceServiceProtocol
+    ) {
+        _viewModel = StateObject(
+            wrappedValue: OnboardingViewModel(
+                bluetoothService: bluetoothService,
+                persistenceService: persistenceService,
+                existingProfile: existingProfile
+            )
+        )
+    }
+
+    var body: some View {
+        OnboardingFlowView(viewModel: viewModel)
     }
 }
 

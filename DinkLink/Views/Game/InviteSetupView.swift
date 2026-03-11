@@ -13,19 +13,24 @@ struct InviteSetupView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             Text(mode.rawValue)
-                .font(.largeTitle.weight(.black))
+                .dinkHeading(28, color: AppTheme.neon)
 
             Text(mode.subtitle)
-                .foregroundStyle(.secondary)
+                .dinkBody(14, color: AppTheme.ash)
 
             Toggle("Two-player session", isOn: $includeOpponent)
                 .toggleStyle(.switch)
+                .tint(AppTheme.neon)
+                .dinkBody(14, color: AppTheme.smoke)
 
             if includeOpponent {
                 TextField("Opponent name", text: $opponentName)
+                    .font(.dinkBody(15))
+                    .foregroundStyle(AppTheme.smoke)
+                    .tint(AppTheme.neon)
                     .textInputAutocapitalization(.words)
                     .padding()
-                    .background(Color(.secondarySystemBackground))
+                    .background(AppTheme.steel)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
 
@@ -35,7 +40,7 @@ struct InviteSetupView: View {
                     Label(opponentName.isEmpty ? "Add your second player" : opponentName, systemImage: "person.2.fill")
                 }
             }
-            .font(.headline)
+            .dinkBody(14, color: AppTheme.smoke)
 
             Spacer()
 
@@ -56,10 +61,14 @@ struct InviteSetupView: View {
                 startSession = true
             }
             .buttonStyle(.borderedProminent)
+            .tint(AppTheme.neon)
+            .foregroundStyle(AppTheme.ink)
             .disabled(includeOpponent && opponentName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .padding(24)
+        .background(AppTheme.ink.ignoresSafeArea())
         .navigationTitle("Session Setup")
+        .toolbarColorScheme(.dark, for: .navigationBar)
     }
 
     private var players: [Player] {

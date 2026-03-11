@@ -10,23 +10,26 @@ struct RecentScoresView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text(session.mode.rawValue)
-                                .font(.headline)
+                                .dinkHeading(16, color: AppTheme.smoke)
                             Spacer()
                             Text(session.endDate.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .dinkBody(11, color: AppTheme.ash)
                         }
 
                         Text("\(session.playerOneName) \(session.playerOneScore) - \(session.playerTwoScore) \(session.playerTwoName)")
-                            .font(.subheadline.weight(.semibold))
+                            .dinkBody(13, color: AppTheme.smoke)
 
                         Text("Winner: \(session.winnerName)")
-                            .foregroundStyle(.green)
+                            .dinkBody(13, color: AppTheme.neon)
                     }
                     .padding(.vertical, 6)
+                    .listRowBackground(AppTheme.steel)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.ink)
             .navigationTitle("Recent Scores")
+            .toolbarColorScheme(.dark, for: .navigationBar)
         }
     }
 }

@@ -1,0 +1,44 @@
+import SwiftUI
+
+enum AppTheme {
+    static let neon = Color(hex: 0xD6F51D)
+    static let ink = Color(hex: 0x090909)
+    static let graphite = Color(hex: 0x161616)
+    static let steel = Color(hex: 0x2A2A2A)
+    static let ash = Color(hex: 0xB7B7B7)
+    static let smoke = Color(hex: 0xE7E7E7)
+}
+
+extension Font {
+    static func dinkHeading(_ size: CGFloat) -> Font {
+        .custom("DelaGothicOne-Regular", size: size, relativeTo: .title)
+    }
+
+    static func dinkBody(_ size: CGFloat) -> Font {
+        .custom("RobotoMono-Regular", size: size, relativeTo: .body)
+    }
+}
+
+extension View {
+    func dinkHeading(_ size: CGFloat, color: Color = AppTheme.smoke) -> some View {
+        font(.dinkHeading(size))
+            .foregroundStyle(color)
+    }
+
+    func dinkBody(_ size: CGFloat = 15, color: Color = AppTheme.smoke) -> some View {
+        font(.dinkBody(size))
+            .foregroundStyle(color)
+    }
+}
+
+extension Color {
+    init(hex: UInt, opacity: Double = 1) {
+        self.init(
+            .sRGB,
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255,
+            opacity: opacity
+        )
+    }
+}
