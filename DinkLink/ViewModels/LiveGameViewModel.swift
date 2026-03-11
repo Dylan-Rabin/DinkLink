@@ -107,6 +107,11 @@ final class LiveGameViewModel: ObservableObject {
         }
     }
 
+    func endSessionEarly() {
+        guard !isSessionComplete else { return }
+        completeSession(winnerName: winnerNameForCurrentState())
+    }
+
     private func ingest(shot: ShotEvent) {
         guard !isSessionComplete else { return }
 
@@ -172,13 +177,6 @@ final class LiveGameViewModel: ObservableObject {
     }
 
     private func handleTimedRoundCompletion() {
-        if playerMetrics.count > 1, activePlayerIndex == 0 {
-            activePlayerIndex = 1
-            secondsRemaining = GameEngine.timedRoundLength
-            roundBanner = "\(activePlayerName), your turn starts now."
-            return
-        }
-
         if mode == .pickleCup {
             let winnerIndex = GameEngine.winnerIndex(for: activeMode, metrics: playerMetrics)
             cupWins[winnerIndex] += 1
@@ -259,6 +257,25 @@ final class LiveGameViewModel: ObservableObject {
     private func cupChampionName() -> String {
         guard cupWins.count > 1 else { return playerMetrics.first?.player.name ?? "Champion" }
         let winnerIndex = cupWins[0] >= cupWins[1] ? 0 : 1
+        return playerMetrics[winnerIndex].player.name
+    }
+
+    private func winnerNameForCurrentState() -> String {
+        if mode == .pickleCup {
+            if cupWins.contains(where: { $0 > 0 }) {
+                return cupChampionName()
+            }
+
+            let winnerIndex = GameEngine.winnerIndex(for: activeMode, metrics: playerMetrics)
+            return playerMetrics[winnerIndex].player.name
+        }
+
+        if activeMode == .theRealDeal {
+            let winnerIndex = GameEngine.winnerIndex(for: activeMode, metrics: playerMetrics)
+            return playerMetrics[winnerIndex].player.name
+        }
+
+        let winnerIndex = GameEngine.winnerIndex(for: activeMode, metrics: playerMetrics)
         return playerMetrics[winnerIndex].player.name
     }
 

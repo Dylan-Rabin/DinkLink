@@ -23,6 +23,7 @@ struct LiveGameView: View {
                     hero
                     playerSwitcher
                     liveMetrics
+                    sessionControls
 
                     if viewModel.activeMode == .theRealDeal {
                         rallyControls
@@ -54,10 +55,10 @@ struct LiveGameView: View {
                 .dinkHeading(22, color: AppTheme.ink)
 
             if viewModel.activeMode.isTimed {
-                Text("Timer: \(viewModel.secondsRemaining)s")
+                Text("Timer: \(formattedTime(viewModel.secondsRemaining))")
                     .dinkBody(14, color: AppTheme.ink)
             } else {
-                Text("Elapsed: \(viewModel.elapsedSeconds)s")
+                Text("Elapsed: \(formattedTime(viewModel.elapsedSeconds))")
                     .dinkBody(14, color: AppTheme.ink)
             }
 
@@ -77,6 +78,33 @@ struct LiveGameView: View {
             )
         )
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    private var sessionControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Session Controls")
+                .dinkHeading(18, color: AppTheme.smoke)
+
+            Text(viewModel.activeMode.isTimed ? "Timed modes run on a single 1:00 countdown." : "End the session whenever the game is decided.")
+                .dinkBody(13, color: AppTheme.ash)
+
+            Button("Game Over") {
+                viewModel.endSessionEarly()
+            }
+            .buttonStyle(.bordered)
+            .tint(AppTheme.neon)
+            .disabled(viewModel.isSessionComplete)
+        }
+        .padding()
+        .background(
+            LinearGradient(
+                colors: [AppTheme.steel, AppTheme.graphite],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .dinkBody(14, color: AppTheme.smoke)
     }
 
     private var playerSwitcher: some View {
@@ -238,5 +266,11 @@ struct LiveGameView: View {
 
     private func formatted(_ value: Double, decimals: Int = 1) -> String {
         String(format: "%.\(decimals)f", value)
+    }
+
+    private func formattedTime(_ seconds: Int) -> String {
+        let minutes = max(seconds, 0) / 60
+        let remainingSeconds = max(seconds, 0) % 60
+        return String(format: "%d:%02d", minutes, remainingSeconds)
     }
 }

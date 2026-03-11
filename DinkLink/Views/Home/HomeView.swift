@@ -13,12 +13,12 @@ struct MainTabView: View {
                     Label("Home", systemImage: "house.fill")
                 }
 
-            StatsView(profile: profile, sessions: sessions)
+            StatsView(profile: profile, sessions: displaySessions)
                 .tabItem {
                     Label("Stats", systemImage: "chart.line.uptrend.xyaxis")
                 }
 
-            RecentScoresView(sessions: sessions)
+            RecentScoresView(sessions: displaySessions)
                 .tabItem {
                     Label("Scores", systemImage: "clock.arrow.circlepath")
                 }
@@ -29,6 +29,10 @@ struct MainTabView: View {
                 }
         }
         .tint(AppTheme.neon)
+    }
+
+    private var displaySessions: [StoredGameSession] {
+        sessions.isEmpty ? SampleData.sampleSessions : sessions
     }
 }
 
