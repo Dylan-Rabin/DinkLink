@@ -201,8 +201,8 @@ struct HomeView: View {
         currentConditions = nil
 
         do {
-            // Networking requirement: resolve the saved onboarding location, then fetch
-            // live conditions for that player-specific place using async URLSession calls.
+            // API usage: first convert the saved city/ZIP into coordinates with Open-Meteo's
+            // geocoding endpoint, then request live current conditions for that location.
             let location = try await CourtWeatherService.resolveLocation(named: profile.locationName)
             courtLocation = location
             currentConditions = try await CourtWeatherService.fetchCurrentConditions(for: location)
@@ -236,6 +236,8 @@ private struct CourtCurrentConditions {
 
 private enum CourtWeatherService {
     static func resolveLocation(named query: String) async throws -> CourtLocation {
+        // API call: geocoding turns user-entered text such as "Austin" or a ZIP code
+        // into latitude/longitude values the forecast API can understand.
         let url = try geocodingURL(for: query)
         let (data, _) = try await URLSession.shared.data(from: url)
         let response = try JSONDecoder().decode(OpenMeteoGeocodingResponse.self, from: data)
@@ -252,6 +254,8 @@ private enum CourtWeatherService {
     }
 
     static func fetchCurrentConditions(for location: CourtLocation) async throws -> CourtCurrentConditions {
+        // API call: this requests today's live weather metrics that the Home screen renders
+        // in the "Today on Court" card.
         let url = try currentConditionsURL(for: location)
         let (data, _) = try await URLSession.shared.data(from: url)
         let response = try JSONDecoder().decode(OpenMeteoCurrentResponse.self, from: data)
