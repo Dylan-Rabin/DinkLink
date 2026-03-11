@@ -5,10 +5,11 @@ protocol PersistenceServiceProtocol {
     func seedSampleSessionsIfNeeded()
     func saveProfile(
         name: String,
+        locationName: String,
         dominantArm: DominantArm,
         skillLevel: SkillLevel,
         paddleName: String
-    )
+    ) throws -> PlayerProfile
     func saveSession(_ draft: SessionDraft)
 }
 
@@ -27,32 +28,38 @@ struct SwiftDataPersistenceService: PersistenceServiceProtocol {
 
     func saveProfile(
         name: String,
+        locationName: String,
         dominantArm: DominantArm,
         skillLevel: SkillLevel,
         paddleName: String
-    ) {
+    ) throws -> PlayerProfile {
         let descriptor = FetchDescriptor<PlayerProfile>()
-        let profile = ((try? context.fetch(descriptor)) ?? []).first
+        let existingProfile = ((try? context.fetch(descriptor)) ?? []).first
+        let savedProfile: PlayerProfile
 
-        if let profile {
-            profile.name = name
-            profile.dominantArmRawValue = dominantArm.rawValue
-            profile.skillLevelRawValue = skillLevel.rawValue
-            profile.syncedPaddleName = paddleName
-            profile.completedOnboarding = true
+        if let existingProfile {
+            existingProfile.name = name
+            existingProfile.locationName = locationName
+            existingProfile.dominantArmRawValue = dominantArm.rawValue
+            existingProfile.skillLevelRawValue = skillLevel.rawValue
+            existingProfile.syncedPaddleName = paddleName
+            existingProfile.completedOnboarding = true
+            savedProfile = existingProfile
         } else {
-            context.insert(
-                PlayerProfile(
-                    name: name,
-                    dominantArm: dominantArm,
-                    skillLevel: skillLevel,
-                    syncedPaddleName: paddleName,
-                    completedOnboarding: true
-                )
+            let newProfile = PlayerProfile(
+                name: name,
+                locationName: locationName,
+                dominantArm: dominantArm,
+                skillLevel: skillLevel,
+                syncedPaddleName: paddleName,
+                completedOnboarding: true
             )
+            context.insert(newProfile)
+            savedProfile = newProfile
         }
 
-        try? context.save()
+        try context.save()
+        return savedProfile
     }
 
     func saveSession(_ draft: SessionDraft) {

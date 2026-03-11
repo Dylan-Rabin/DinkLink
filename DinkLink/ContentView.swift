@@ -8,10 +8,11 @@ struct ContentView: View {
 
     @StateObject private var appViewModel = AppViewModel()
     @StateObject private var bluetoothService = MockBluetoothService()
+    @State private var locallyCompletedProfile: PlayerProfile?
 
     var body: some View {
         Group {
-            if let profile = profiles.first, profile.completedOnboarding {
+            if let profile = activeProfile {
                 MainTabView(
                     profile: profile,
                     sessions: sessions,
@@ -22,7 +23,9 @@ struct ContentView: View {
                     bluetoothService: bluetoothService,
                     existingProfile: profiles.first,
                     persistenceService: SwiftDataPersistenceService(context: modelContext)
-                )
+                ) { profile in
+                    locallyCompletedProfile = profile
+                }
             }
         }
         .task {
@@ -31,16 +34,27 @@ struct ContentView: View {
             )
         }
     }
+
+    private var activeProfile: PlayerProfile? {
+        locallyCompletedProfile ?? completedProfile
+    }
+
+    private var completedProfile: PlayerProfile? {
+        profiles.first(where: \.completedOnboarding)
+    }
 }
 
 private struct OnboardingRootView: View {
     @StateObject private var viewModel: OnboardingViewModel
+    let onComplete: (PlayerProfile) -> Void
 
     init(
         bluetoothService: MockBluetoothService,
         existingProfile: PlayerProfile?,
-        persistenceService: PersistenceServiceProtocol
+        persistenceService: PersistenceServiceProtocol,
+        onComplete: @escaping (PlayerProfile) -> Void
     ) {
+        self.onComplete = onComplete
         _viewModel = StateObject(
             wrappedValue: OnboardingViewModel(
                 bluetoothService: bluetoothService,
@@ -51,7 +65,7 @@ private struct OnboardingRootView: View {
     }
 
     var body: some View {
-        OnboardingFlowView(viewModel: viewModel)
+        OnboardingFlowView(viewModel: viewModel, onComplete: onComplete)
     }
 }
 

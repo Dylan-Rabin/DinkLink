@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OnboardingFlowView: View {
     @ObservedObject var viewModel: OnboardingViewModel
+    let onComplete: (PlayerProfile) -> Void
 
     var body: some View {
         ZStack {
@@ -52,6 +53,11 @@ struct OnboardingFlowView: View {
                         .stroke(AppTheme.neon.opacity(0.2), lineWidth: 1)
                 )
 
+                if let onboardingErrorMessage = viewModel.onboardingErrorMessage {
+                    Text(onboardingErrorMessage)
+                        .dinkBody(12, color: AppTheme.ash)
+                }
+
                 Spacer()
             }
             .padding(24)
@@ -81,6 +87,15 @@ struct OnboardingFlowView: View {
                 .dinkHeading(22, color: AppTheme.smoke)
 
             TextField("Player name", text: $viewModel.playerName)
+                .font(.dinkBody(15))
+                .foregroundStyle(AppTheme.ink)
+                .tint(AppTheme.ink)
+                .textInputAutocapitalization(.words)
+                .padding()
+                .background(AppTheme.smoke)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            TextField("City or ZIP code", text: $viewModel.playerLocation)
                 .font(.dinkBody(15))
                 .foregroundStyle(AppTheme.ink)
                 .tint(AppTheme.ink)
@@ -174,7 +189,9 @@ struct OnboardingFlowView: View {
                 Button(viewModel.isConnecting ? "Connecting..." : "Connect Paddle") {
                     Task {
                         await viewModel.connectSelectedPaddle()
-                        viewModel.completeOnboarding()
+                        if let profile = viewModel.completeOnboarding() {
+                            onComplete(profile)
+                        }
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -194,8 +211,13 @@ struct OnboardingFlowView: View {
             Text("\(viewModel.playerName) is paired with \(viewModel.selectedDevice?.name ?? "Mock Paddle").")
                 .foregroundStyle(.white.opacity(0.8))
 
+            Text("Local weather will be shown for \(viewModel.playerLocation).")
+                .foregroundStyle(.white.opacity(0.8))
+
             Button("Launch DinkLink") {
-                viewModel.completeOnboarding()
+                if let profile = viewModel.completeOnboarding() {
+                    onComplete(profile)
+                }
             }
             .buttonStyle(.borderedProminent)
         }
@@ -208,12 +230,22 @@ struct OnboardingFlowView: View {
             bluetoothService: MockBluetoothService(),
             persistenceService: PreviewPersistenceService(),
             existingProfile: nil
-        )
+        ),
+        onComplete: { _ in }
     )
 }
 
 private struct PreviewPersistenceService: PersistenceServiceProtocol {
     func seedSampleSessionsIfNeeded() {}
-    func saveProfile(name: String, dominantArm: DominantArm, skillLevel: SkillLevel, paddleName: String) {}
+    func saveProfile(name: String, locationName: String, dominantArm: DominantArm, skillLevel: SkillLevel, paddleName: String) throws -> PlayerProfile {
+        PlayerProfile(
+            name: name,
+            locationName: locationName,
+            dominantArm: dominantArm,
+            skillLevel: skillLevel,
+            syncedPaddleName: paddleName,
+            completedOnboarding: true
+        )
+    }
     func saveSession(_ draft: SessionDraft) {}
 }

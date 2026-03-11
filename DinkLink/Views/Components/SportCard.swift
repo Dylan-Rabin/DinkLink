@@ -28,7 +28,7 @@ struct SportCard: View {
                         .foregroundStyle(AppTheme.ink)
                 }
             }
-            .padding(20)
+            .padding(16)
             .frame(maxWidth: .infinity, minHeight: 154, alignment: .leading)
             .background(
                 LinearGradient(

@@ -186,6 +186,7 @@ struct SessionDraft {
 final class PlayerProfile {
     @Attribute(.unique) var id: UUID
     var name: String
+    var locationName: String
     var dominantArmRawValue: String
     var skillLevelRawValue: String
     var syncedPaddleName: String
@@ -194,6 +195,7 @@ final class PlayerProfile {
     init(
         id: UUID = UUID(),
         name: String,
+        locationName: String,
         dominantArm: DominantArm,
         skillLevel: SkillLevel,
         syncedPaddleName: String,
@@ -201,6 +203,7 @@ final class PlayerProfile {
     ) {
         self.id = id
         self.name = name
+        self.locationName = locationName
         dominantArmRawValue = dominantArm.rawValue
         skillLevelRawValue = skillLevel.rawValue
         self.syncedPaddleName = syncedPaddleName
