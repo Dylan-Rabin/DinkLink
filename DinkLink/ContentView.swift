@@ -6,8 +6,10 @@ struct ContentView: View {
     @Query private var profiles: [PlayerProfile]
     @Query(sort: \StoredGameSession.endDate, order: .reverse) private var sessions: [StoredGameSession]
 
-    @StateObject private var appViewModel = AppViewModel()
-    @StateObject private var bluetoothService = MockBluetoothService()
+    // These reference types are owned by the root view, so with the Observation
+    // framework they live in @State instead of @StateObject.
+    @State private var appViewModel = AppViewModel()
+    @State private var bluetoothService = MockBluetoothService()
     @State private var locallyCompletedProfile: PlayerProfile?
 
     var body: some View {
@@ -45,7 +47,8 @@ struct ContentView: View {
 }
 
 private struct OnboardingRootView: View {
-    @StateObject private var viewModel: OnboardingViewModel
+    // The onboarding flow owns its view model for the lifetime of this subtree.
+    @State private var viewModel: OnboardingViewModel
     let onComplete: (PlayerProfile) -> Void
 
     init(
@@ -55,8 +58,8 @@ private struct OnboardingRootView: View {
         onComplete: @escaping (PlayerProfile) -> Void
     ) {
         self.onComplete = onComplete
-        _viewModel = StateObject(
-            wrappedValue: OnboardingViewModel(
+        _viewModel = State(
+            initialValue: OnboardingViewModel(
                 bluetoothService: bluetoothService,
                 persistenceService: persistenceService,
                 existingProfile: existingProfile

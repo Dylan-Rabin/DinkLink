@@ -1,28 +1,36 @@
-import Combine
 import Foundation
+import Observation
 
 @MainActor
-final class LiveGameViewModel: ObservableObject {
-    @Published var activePlayerIndex = 0
-    @Published var secondsRemaining = GameEngine.timedRoundLength
-    @Published var elapsedSeconds = 0
-    @Published var latestFeedback = "Waiting for live paddle data"
-    @Published var latestSwingSpeed: Double = 0
-    @Published var currentRallyHits = 0
-    @Published var rallies: [Rally] = []
-    @Published var playerMetrics: [PlayerGameMetrics]
-    @Published var isSessionComplete = false
-    @Published var sessionWinner = ""
-    @Published var roundBanner = "Warm up the hands."
-    @Published var cupWins: [Int]
-    @Published var currentCupStageIndex = 0
+// Live game state is centralized here so the view renders from one observable
+// source of truth while game logic stays outside the SwiftUI layer.
+@Observable
+final class LiveGameViewModel {
+    var activePlayerIndex = 0
+    var secondsRemaining = GameEngine.timedRoundLength
+    var elapsedSeconds = 0
+    var latestFeedback = "Waiting for live paddle data"
+    var latestSwingSpeed: Double = 0
+    var currentRallyHits = 0
+    var rallies: [Rally] = []
+    var playerMetrics: [PlayerGameMetrics]
+    var isSessionComplete = false
+    var sessionWinner = ""
+    var roundBanner = "Warm up the hands."
+    var cupWins: [Int]
+    var currentCupStageIndex = 0
 
     let mode: GameMode
 
+    @ObservationIgnored
     private let bluetoothService: BluetoothServiceProtocol
+    @ObservationIgnored
     private let persistenceService: PersistenceServiceProtocol
+    @ObservationIgnored
     private let sessionStartDate: Date
+    @ObservationIgnored
     private var timer: Timer?
+    @ObservationIgnored
     private var hasSaved = false
 
     init(

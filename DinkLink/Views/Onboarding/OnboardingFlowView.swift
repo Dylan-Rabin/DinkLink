@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct OnboardingFlowView: View {
-    @ObservedObject var viewModel: OnboardingViewModel
+    // @Bindable exposes writable bindings to an @Observable view model.
+    @Bindable var viewModel: OnboardingViewModel
     let onComplete: (PlayerProfile) -> Void
 
     var body: some View {

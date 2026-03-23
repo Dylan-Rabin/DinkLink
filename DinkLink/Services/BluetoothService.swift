@@ -1,5 +1,5 @@
-import Combine
 import Foundation
+import Observation
 
 @MainActor
 protocol BluetoothServiceProtocol: AnyObject {
@@ -15,12 +15,16 @@ protocol BluetoothServiceProtocol: AnyObject {
 }
 
 @MainActor
-final class MockBluetoothService: ObservableObject, BluetoothServiceProtocol {
-    @Published private(set) var connectedDevice: PaddleDevice?
-    @Published private(set) var discoveredDevices: [PaddleDevice] = []
+// The mock service is also observable so connected-device changes can flow into
+// SwiftUI views using the same Observation system as the view models.
+@Observable
+final class MockBluetoothService: BluetoothServiceProtocol {
+    private(set) var connectedDevice: PaddleDevice?
+    private(set) var discoveredDevices: [PaddleDevice] = []
 
     var onShotEvent: ((ShotEvent) -> Void)?
 
+    @ObservationIgnored
     private var streamTimer: Timer?
 
     func scanForDevices() async -> [PaddleDevice] {

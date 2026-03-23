@@ -1,8 +1,11 @@
-import Combine
 import Foundation
+import Observation
 
 @MainActor
-final class OnboardingViewModel: ObservableObject {
+// This view model owns all onboarding screen state and actions, keeping the view
+// focused on binding and presentation.
+@Observable
+final class OnboardingViewModel {
     enum Step: Int, CaseIterable {
         case intro
         case playerProfile
@@ -10,18 +13,20 @@ final class OnboardingViewModel: ObservableObject {
         case ready
     }
 
-    @Published var currentStep: Step = .intro
-    @Published var playerName: String
-    @Published var playerLocation: String
-    @Published var dominantArm: DominantArm
-    @Published var skillLevel: SkillLevel
-    @Published var availableDevices: [PaddleDevice] = []
-    @Published var selectedDeviceID: UUID?
-    @Published var isScanning = false
-    @Published var isConnecting = false
-    @Published var onboardingErrorMessage: String?
+    var currentStep: Step = .intro
+    var playerName: String
+    var playerLocation: String
+    var dominantArm: DominantArm
+    var skillLevel: SkillLevel
+    var availableDevices: [PaddleDevice] = []
+    var selectedDeviceID: UUID?
+    var isScanning = false
+    var isConnecting = false
+    var onboardingErrorMessage: String?
 
+    @ObservationIgnored
     private let bluetoothService: BluetoothServiceProtocol
+    @ObservationIgnored
     private let persistenceService: PersistenceServiceProtocol
 
     init(

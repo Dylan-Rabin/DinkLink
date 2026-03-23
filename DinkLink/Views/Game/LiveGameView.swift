@@ -1,7 +1,9 @@
 import SwiftUI
 
 struct LiveGameView: View {
-    @ObservedObject var viewModel: LiveGameViewModel
+    // The live game screen edits view-model state through bindings produced by
+    // the Observation framework instead of ObservedObject.
+    @Bindable var viewModel: LiveGameViewModel
 
     var body: some View {
         ZStack {
