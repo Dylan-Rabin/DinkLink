@@ -20,39 +20,31 @@ struct OnboardingFlowView: View {
                 .blur(radius: 100)
                 .offset(x: 160, y: -260)
 
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 32) {
                 Text("Welcome to The DinkLink")
                     .dinkHeading(34, color: AppTheme.neon)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text("Smart paddle training for sharper hands, cleaner contacts, and match-ready confidence.")
                     .dinkBody(18, color: AppTheme.smoke.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
 
-                Group {
-                    switch viewModel.currentStep {
-                    case .intro:
-                        introStep
-                    case .playerProfile:
+                switch viewModel.currentStep {
+                case .intro:
+                    introStep
+                case .playerProfile:
+                    styledStepCard {
                         profileStep
-                    case .paddleSync:
+                    }
+                case .paddleSync:
+                    styledStepCard {
                         paddleSyncStep
-                    case .ready:
+                    }
+                case .ready:
+                    styledStepCard {
                         readyStep
                     }
                 }
-                .padding(24)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    LinearGradient(
-                        colors: [AppTheme.steel.opacity(0.98), AppTheme.graphite.opacity(0.96)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(AppTheme.neon.opacity(0.2), lineWidth: 1)
-                )
 
                 if let onboardingErrorMessage = viewModel.onboardingErrorMessage {
                     Text(onboardingErrorMessage)
@@ -65,25 +57,85 @@ struct OnboardingFlowView: View {
         }
     }
 
+    @ViewBuilder
+    private func styledStepCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                LinearGradient(
+                    colors: [AppTheme.steel.opacity(0.98), AppTheme.graphite.opacity(0.96)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(AppTheme.neon.opacity(0.2), lineWidth: 1)
+            )
+    }
+
     private var introStep: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Train smarter.")
-                .dinkHeading(24, color: AppTheme.smoke)
+        VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 24) {
+                Text("Train smarter.")
+                    .dinkHeading(24, color: AppTheme.smoke)
 
-            Text("Set up your player profile, pair a paddle, and launch into live game modes backed by mocked sensor data.")
-                .dinkBody(16, color: AppTheme.ash)
+                Text("Set up your player profile, pair a paddle, and launch into live game modes backed by mocked sensor data.")
+                    .dinkBody(16, color: AppTheme.ash)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            Button("Build My Profile") {
-                viewModel.advance()
+                Button("Build My Profile") {
+                    viewModel.advance()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(AppTheme.neon)
+                .foregroundStyle(AppTheme.ink)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(AppTheme.neon)
-            .foregroundStyle(AppTheme.ink)
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                LinearGradient(
+                    colors: [AppTheme.steel.opacity(0.92), AppTheme.graphite.opacity(0.9)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 24) {
+                Text("Returning player?")
+                    .dinkHeading(24, color: AppTheme.smoke)
+
+                Text("Jump in with Dylan's sample account data as a left-handed player in San Francisco using a CourtSense One paddle.")
+                    .dinkBody(15, color: AppTheme.ash)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button("Sign In as Dylan") {
+                    if let profile = viewModel.signInReturningUser() {
+                        onComplete(profile)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .tint(AppTheme.neon)
+                .disabled(!viewModel.canUseReturningUser)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                LinearGradient(
+                    colors: [AppTheme.graphite.opacity(0.92), AppTheme.deepShadow.opacity(0.88)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
     }
 
     private var profileStep: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 22) {
             Text("Player Profile")
                 .dinkHeading(22, color: AppTheme.smoke)
 
@@ -140,7 +192,7 @@ struct OnboardingFlowView: View {
     }
 
     private var paddleSyncStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 20) {
             HStack {
                 Text("Paddle Sync")
                     .dinkHeading(22, color: AppTheme.smoke)
@@ -164,7 +216,7 @@ struct OnboardingFlowView: View {
                         viewModel.selectedDeviceID = device.id
                     } label: {
                         HStack {
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: 8) {
                                 Text(device.name)
                                     .dinkHeading(16, color: AppTheme.smoke)
                                 Text("\(device.batteryLevel)% battery")
@@ -204,7 +256,7 @@ struct OnboardingFlowView: View {
     }
 
     private var readyStep: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 22) {
             Text("You’re Court Ready")
                 .font(.title2.weight(.bold))
                 .foregroundStyle(.white)

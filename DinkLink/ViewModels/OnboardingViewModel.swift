@@ -47,6 +47,10 @@ final class OnboardingViewModel {
             !playerLocation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    var canUseReturningUser: Bool {
+        true
+    }
+
     var selectedDevice: PaddleDevice? {
         availableDevices.first(where: { $0.id == selectedDeviceID })
     }
@@ -70,14 +74,30 @@ final class OnboardingViewModel {
         currentStep = next
     }
 
+    func signInReturningUser() -> PlayerProfile? {
+        playerName = "Dylan"
+        playerLocation = "San Francisco"
+        dominantArm = .left
+        skillLevel = .intermediate
+        selectedDeviceID = availableDevices.first(where: { $0.name == "CourtSense One" })?.id
+
+        return saveProfile(paddleName: "CourtSense One")
+    }
+
     func completeOnboarding() -> PlayerProfile? {
+        saveProfile(
+            paddleName: bluetoothService.connectedDevice?.name ?? selectedDevice?.name ?? "Mock Paddle"
+        )
+    }
+
+    private func saveProfile(paddleName: String) -> PlayerProfile? {
         do {
             let profile = try persistenceService.saveProfile(
                 name: playerName,
                 locationName: playerLocation,
                 dominantArm: dominantArm,
                 skillLevel: skillLevel,
-                paddleName: bluetoothService.connectedDevice?.name ?? selectedDevice?.name ?? "Mock Paddle"
+                paddleName: paddleName
             )
             onboardingErrorMessage = nil
             return profile
