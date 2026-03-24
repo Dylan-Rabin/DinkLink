@@ -4,56 +4,119 @@ struct OnboardingFlowView: View {
     // @Bindable exposes writable bindings to an @Observable view model.
     @Bindable var viewModel: OnboardingViewModel
     let onComplete: (PlayerProfile) -> Void
+    @State private var showsSplash = true
+    @State private var showsBlackLogo = true
+    @State private var revealsSplashAnimation = false
+    @State private var ballLifted = false
+    @State private var paddleTilted = false
+    @State private var glowExpanded = false
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [AppTheme.deepShadow, AppTheme.graphite, AppTheme.steel, AppTheme.mutedGlow],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            if showsSplash {
+                Color.black
+                    .ignoresSafeArea()
+                    .opacity(showsBlackLogo ? 1 : 0)
 
-            Circle()
-                .fill(AppTheme.mutedGlow)
-                .frame(width: 320, height: 320)
-                .blur(radius: 100)
-                .offset(x: 160, y: -260)
+                VStack {
+                    Spacer()
 
-            VStack(alignment: .leading, spacing: 32) {
-                Text("Welcome to The DinkLink")
-                    .dinkHeading(34, color: AppTheme.neon)
-                    .fixedSize(horizontal: false, vertical: true)
+                    Image("SplashLogo")
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFit()
+                        .frame(maxWidth: 320)
+                        .shadow(color: AppTheme.mutedGlow.opacity(0.18), radius: 18)
 
-                Text("Smart paddle training for sharper hands, cleaner contacts, and match-ready confidence.")
-                    .dinkBody(18, color: AppTheme.smoke.opacity(0.82))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                switch viewModel.currentStep {
-                case .intro:
-                    introStep
-                case .playerProfile:
-                    styledStepCard {
-                        profileStep
-                    }
-                case .paddleSync:
-                    styledStepCard {
-                        paddleSyncStep
-                    }
-                case .ready:
-                    styledStepCard {
-                        readyStep
-                    }
+                    Spacer()
                 }
+                .padding(24)
+                .opacity(showsBlackLogo ? 1 : 0)
+            }
 
-                if let onboardingErrorMessage = viewModel.onboardingErrorMessage {
-                    Text(onboardingErrorMessage)
-                        .dinkBody(12, color: AppTheme.ash)
+            if !showsSplash || revealsSplashAnimation {
+                LinearGradient(
+                    colors: [AppTheme.deepShadow, AppTheme.graphite, AppTheme.steel, AppTheme.mutedGlow],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+
+                Circle()
+                    .fill(AppTheme.mutedGlow)
+                    .frame(width: 320, height: 320)
+                    .blur(radius: 100)
+                    .offset(x: 160, y: -260)
+                    .transition(.opacity)
+            }
+
+            Group {
+                if showsSplash {
+                    splashScreen
+                        .opacity(revealsSplashAnimation ? 1 : 0)
+                        .scaleEffect(revealsSplashAnimation ? 1 : 0.96)
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                } else {
+                    VStack(alignment: .leading, spacing: 32) {
+                        Text("Welcome to The DinkLink")
+                            .dinkHeading(34, color: AppTheme.neon)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text("Smart paddle training for sharper hands, cleaner contacts, and match-ready confidence.")
+                            .dinkBody(18, color: AppTheme.smoke.opacity(0.82))
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        switch viewModel.currentStep {
+                        case .intro:
+                            introStep
+                        case .playerProfile:
+                            styledStepCard {
+                                profileStep
+                            }
+                        case .paddleSync:
+                            styledStepCard {
+                                paddleSyncStep
+                            }
+                        case .ready:
+                            styledStepCard {
+                                readyStep
+                            }
+                        }
+
+                        if let onboardingErrorMessage = viewModel.onboardingErrorMessage {
+                            Text(onboardingErrorMessage)
+                                .dinkBody(12, color: AppTheme.ash)
+                        }
+
+                        Spacer()
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
-
-                Spacer()
             }
             .padding(24)
+        }
+        .task {
+            guard showsSplash else { return }
+
+            try? await Task.sleep(for: .seconds(0.9))
+            guard !Task.isCancelled else { return }
+
+            showsBlackLogo = false
+
+            try? await Task.sleep(for: .seconds(0.2))
+            guard !Task.isCancelled else { return }
+
+            withAnimation(.easeOut(duration: 0.6)) {
+                revealsSplashAnimation = true
+            }
+
+            startSplashAnimations()
+            try? await Task.sleep(for: .seconds(3.8))
+
+            guard !Task.isCancelled else { return }
+            withAnimation(.spring(response: 0.7, dampingFraction: 0.9)) {
+                showsSplash = false
+            }
         }
     }
 
@@ -74,6 +137,79 @@ struct OnboardingFlowView: View {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .stroke(AppTheme.neon.opacity(0.2), lineWidth: 1)
             )
+    }
+
+    private var splashScreen: some View {
+        VStack(spacing: 28) {
+            ZStack {
+                Circle()
+                    .fill(AppTheme.mutedGlow.opacity(0.55))
+                    .frame(width: glowExpanded ? 260 : 210, height: glowExpanded ? 260 : 210)
+                    .blur(radius: 50)
+
+                ZStack(alignment: .bottom) {
+                    ZStack {
+                        Ellipse()
+                            .fill(
+                                LinearGradient(
+                                    colors: [AppTheme.smoke, AppTheme.ash],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 112, height: 132)
+                            .overlay(
+                                Ellipse()
+                                    .stroke(AppTheme.neon.opacity(0.35), lineWidth: 2)
+                            )
+
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [AppTheme.smoke, AppTheme.ash],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .frame(width: 18, height: 84)
+                            .offset(y: 82)
+                    }
+                    .rotationEffect(.degrees((paddleTilted ? -12 : 12) + 90), anchor: .center)
+                    .offset(y: 34)
+
+                    Circle()
+                        .fill(AppTheme.neon)
+                        .frame(width: 34, height: 34)
+                        .shadow(color: AppTheme.neon.opacity(0.85), radius: 18)
+                        .offset(y: ballLifted ? -112 : -34)
+                }
+            }
+            .frame(height: 280)
+
+            VStack(spacing: 12) {
+                Text("DinkLink")
+                    .dinkHeading(36, color: AppTheme.neon)
+
+                Text("Dialing in your next session.")
+                    .dinkBody(16, color: AppTheme.smoke.opacity(0.82))
+            }
+            .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func startSplashAnimations() {
+        withAnimation(.easeInOut(duration: 0.85).repeatForever(autoreverses: true)) {
+            ballLifted = true
+        }
+
+        withAnimation(.easeInOut(duration: 0.85).repeatForever(autoreverses: true)) {
+            paddleTilted = true
+        }
+
+        withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+            glowExpanded = true
+        }
     }
 
     private var introStep: some View {
