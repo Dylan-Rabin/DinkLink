@@ -5,6 +5,7 @@ struct MainTabView: View {
     let profile: PlayerProfile
     let sessions: [StoredGameSession]
     let bluetoothService: MockBluetoothService
+    let authService: SupabaseAuthService
 
     var body: some View {
         TabView {
@@ -18,12 +19,12 @@ struct MainTabView: View {
                     Label("Stats", systemImage: "chart.line.uptrend.xyaxis")
                 }
 
-            RecentScoresView(sessions: displaySessions)
+            RecentScoresView(profile: profile, sessions: sessions, authService: authService)
                 .tabItem {
                     Label("Scores", systemImage: "clock.arrow.circlepath")
                 }
 
-            ProfileView(profile: profile, bluetoothService: bluetoothService)
+            ProfileView(profile: profile, bluetoothService: bluetoothService, authService: authService)
                 .tabItem {
                     Label("Profile", systemImage: "person.crop.circle")
                 }
@@ -205,18 +206,27 @@ private struct ProfileView: View {
 
     let profile: PlayerProfile
     let bluetoothService: MockBluetoothService
+    let authService: SupabaseAuthService
 
     @State private var locationName: String
     @State private var dominantArm: DominantArm
     @State private var skillLevel: SkillLevel
     @State private var saveMessage: String?
+    @State private var authEmail = ""
+    @State private var authPassword = ""
 
-    init(profile: PlayerProfile, bluetoothService: MockBluetoothService) {
+    init(
+        profile: PlayerProfile,
+        bluetoothService: MockBluetoothService,
+        authService: SupabaseAuthService
+    ) {
         self.profile = profile
         self.bluetoothService = bluetoothService
+        self.authService = authService
         _locationName = State(initialValue: profile.locationName)
         _dominantArm = State(initialValue: profile.dominantArm)
         _skillLevel = State(initialValue: profile.skillLevel)
+        _authEmail = State(initialValue: authService.currentUserEmail ?? "")
     }
 
     var body: some View {
@@ -328,6 +338,92 @@ private struct ProfileView: View {
 
                             detailRow(title: "Connected", value: bluetoothService.connectedDevice?.name ?? profile.syncedPaddleName)
                             detailRow(title: "Battery", value: "\(bluetoothService.connectedDevice?.batteryLevel ?? 100)%")
+                        }
+                        .padding(20)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(AppTheme.steel.opacity(0.92))
+                        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                                .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
+                        )
+
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Comments Account")
+                                .dinkHeading(20, color: AppTheme.smoke)
+
+                            if authService.isAuthenticated {
+                                detailRow(
+                                    title: "Signed In",
+                                    value: authService.currentUserEmail ?? "Authenticated user"
+                                )
+
+                                Button("Sign Out") {
+                                    authService.signOut()
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(AppTheme.neon)
+                            } else {
+                                Text("Sign in or create an account to post public comments on finished matches.")
+                                    .dinkBody(14, color: AppTheme.ash)
+
+                                TextField("Email", text: $authEmail)
+                                    .font(.dinkBody(15))
+                                    .foregroundStyle(AppTheme.ink)
+                                    .tint(AppTheme.ink)
+                                    .keyboardType(.emailAddress)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                                    .padding()
+                                    .background(AppTheme.smoke)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                                SecureField("Password", text: $authPassword)
+                                    .font(.dinkBody(15))
+                                    .foregroundStyle(AppTheme.ink)
+                                    .tint(AppTheme.ink)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                                    .padding()
+                                    .background(AppTheme.smoke)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                                HStack {
+                                    Button("Sign In") {
+                                        Task {
+                                            await authService.signIn(email: authEmail, password: authPassword)
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(AppTheme.neon)
+                                    .foregroundStyle(AppTheme.ink)
+                                    .disabled(authService.isAuthenticating)
+
+                                    Button("Create Account") {
+                                        Task {
+                                            await authService.signUp(email: authEmail, password: authPassword)
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .tint(AppTheme.neon)
+                                    .disabled(authService.isAuthenticating)
+                                }
+                            }
+
+                            if authService.isAuthenticating {
+                                ProgressView()
+                                    .tint(AppTheme.neon)
+                            }
+
+                            if let authStatusMessage = authService.authStatusMessage {
+                                Text(authStatusMessage)
+                                    .dinkBody(12, color: AppTheme.neon)
+                            }
+
+                            if let authErrorMessage = authService.authErrorMessage {
+                                Text(authErrorMessage)
+                                    .dinkBody(12, color: AppTheme.ash)
+                            }
                         }
                         .padding(20)
                         .frame(maxWidth: .infinity, alignment: .leading)

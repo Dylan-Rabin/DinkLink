@@ -10,6 +10,7 @@ struct ContentView: View {
     // framework they live in @State instead of @StateObject.
     @State private var appViewModel = AppViewModel()
     @State private var bluetoothService = MockBluetoothService()
+    @State private var authService = SupabaseAuthService()
     @State private var locallyCompletedProfile: PlayerProfile?
 
     var body: some View {
@@ -18,7 +19,8 @@ struct ContentView: View {
                 MainTabView(
                     profile: profile,
                     sessions: sessions,
-                    bluetoothService: bluetoothService
+                    bluetoothService: bluetoothService,
+                    authService: authService
                 )
             } else {
                 OnboardingRootView(

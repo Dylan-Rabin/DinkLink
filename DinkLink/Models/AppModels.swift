@@ -182,6 +182,50 @@ struct SessionDraft {
     var bestRallyLength: Int
 }
 
+struct PublicComment: Identifiable, Codable, Hashable {
+    let id: UUID
+    let itemID: UUID
+    let userID: UUID
+    let authorName: String
+    let body: String
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case itemID = "item_id"
+        case userID = "user_id"
+        case authorName = "author_name"
+        case body
+        case createdAt = "created_at"
+    }
+}
+
+struct CreateCommentRequest: Encodable {
+    let itemID: UUID
+    let userID: UUID
+    let authorName: String
+    let body: String
+
+    enum CodingKeys: String, CodingKey {
+        case itemID = "item_id"
+        case userID = "user_id"
+        case authorName = "author_name"
+        case body
+    }
+}
+
+struct SupabaseAuthUser: Codable, Hashable {
+    let id: UUID
+    let email: String?
+}
+
+struct SupabaseAuthSession: Codable, Hashable {
+    let accessToken: String
+    let refreshToken: String?
+    let user: SupabaseAuthUser
+    let expiresAt: Date?
+}
+
 @Model
 final class PlayerProfile {
     @Attribute(.unique) var id: UUID
