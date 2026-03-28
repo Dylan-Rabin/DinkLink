@@ -6,6 +6,7 @@ struct MainTabView: View {
     let sessions: [StoredGameSession]
     let bluetoothService: MockBluetoothService
     let authService: SupabaseAuthService
+    let onLogOut: (PlayerProfile) -> Void
 
     var body: some View {
         TabView {
@@ -24,7 +25,12 @@ struct MainTabView: View {
                     Label("Scores", systemImage: "clock.arrow.circlepath")
                 }
 
-            ProfileView(profile: profile, bluetoothService: bluetoothService, authService: authService)
+            ProfileView(
+                profile: profile,
+                bluetoothService: bluetoothService,
+                authService: authService,
+                onLogOut: onLogOut
+            )
                 .tabItem {
                     Label("Profile", systemImage: "person.crop.circle")
                 }

@@ -20,7 +20,8 @@ struct ContentView: View {
                     profile: profile,
                     sessions: sessions,
                     bluetoothService: bluetoothService,
-                    authService: authService
+                    authService: authService,
+                    onLogOut: handleLogOut
                 )
             } else {
                 OnboardingRootView(
@@ -46,6 +47,20 @@ struct ContentView: View {
 
     private var completedProfile: PlayerProfile? {
         profiles.first(where: \.completedOnboarding)
+    }
+
+    @MainActor
+    private func handleLogOut(_ profile: PlayerProfile) {
+        authService.signOut()
+        profile.completedOnboarding = false
+        locallyCompletedProfile = nil
+
+        do {
+            try modelContext.save()
+        } catch {
+            // If the logout save fails, falling back to onboarding is still better than
+            // leaving the UI in an inconsistent signed-in state.
+        }
     }
 }
 

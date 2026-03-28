@@ -7,6 +7,7 @@ struct ProfileView: View {
     let profile: PlayerProfile
     let bluetoothService: MockBluetoothService
     let authService: SupabaseAuthService
+    let onLogOut: (PlayerProfile) -> Void
 
     @State private var locationName: String
     @State private var dominantArm: DominantArm
@@ -18,11 +19,13 @@ struct ProfileView: View {
     init(
         profile: PlayerProfile,
         bluetoothService: MockBluetoothService,
-        authService: SupabaseAuthService
+        authService: SupabaseAuthService,
+        onLogOut: @escaping (PlayerProfile) -> Void
     ) {
         self.profile = profile
         self.bluetoothService = bluetoothService
         self.authService = authService
+        self.onLogOut = onLogOut
         _locationName = State(initialValue: profile.locationName)
         _dominantArm = State(initialValue: profile.dominantArm)
         _skillLevel = State(initialValue: profile.skillLevel)
@@ -233,6 +236,12 @@ struct ProfileView: View {
                             RoundedRectangle(cornerRadius: 26, style: .continuous)
                                 .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
                         )
+
+                        Button("Log Out") {
+                            logOut()
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(AppTheme.ash)
                     }
                     .padding(20)
                 }
@@ -265,5 +274,10 @@ struct ProfileView: View {
         } catch {
             saveMessage = "Couldn't save changes right now."
         }
+    }
+
+    @MainActor
+    private func logOut() {
+        onLogOut(profile)
     }
 }
