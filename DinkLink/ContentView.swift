@@ -26,7 +26,8 @@ struct ContentView: View {
                 OnboardingRootView(
                     bluetoothService: bluetoothService,
                     existingProfile: profiles.first,
-                    persistenceService: SwiftDataPersistenceService(context: modelContext)
+                    persistenceService: SwiftDataPersistenceService(context: modelContext),
+                    authService: authService
                 ) { profile in
                     locallyCompletedProfile = profile
                 }
@@ -57,6 +58,7 @@ private struct OnboardingRootView: View {
         bluetoothService: MockBluetoothService,
         existingProfile: PlayerProfile?,
         persistenceService: PersistenceServiceProtocol,
+        authService: SupabaseAuthService,
         onComplete: @escaping (PlayerProfile) -> Void
     ) {
         self.onComplete = onComplete
@@ -64,6 +66,7 @@ private struct OnboardingRootView: View {
             initialValue: OnboardingViewModel(
                 bluetoothService: bluetoothService,
                 persistenceService: persistenceService,
+                authService: authService,
                 existingProfile: existingProfile
             )
         )

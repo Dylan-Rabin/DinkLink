@@ -18,6 +18,8 @@ final class OnboardingViewModel {
     var playerLocation: String
     var dominantArm: DominantArm
     var skillLevel: SkillLevel
+    var authEmail: String
+    var authPassword = ""
     var availableDevices: [PaddleDevice] = []
     var selectedDeviceID: UUID?
     var isScanning = false
@@ -28,18 +30,23 @@ final class OnboardingViewModel {
     private let bluetoothService: BluetoothServiceProtocol
     @ObservationIgnored
     private let persistenceService: PersistenceServiceProtocol
+    @ObservationIgnored
+    private let authService: SupabaseAuthService
 
     init(
         bluetoothService: BluetoothServiceProtocol,
         persistenceService: PersistenceServiceProtocol,
+        authService: SupabaseAuthService,
         existingProfile: PlayerProfile?
     ) {
         self.bluetoothService = bluetoothService
         self.persistenceService = persistenceService
+        self.authService = authService
         playerName = existingProfile?.name ?? ""
         playerLocation = existingProfile?.locationName ?? ""
         dominantArm = existingProfile?.dominantArm ?? .right
         skillLevel = existingProfile?.skillLevel ?? .beginner
+        authEmail = authService.currentUserEmail ?? ""
     }
 
     var canContinueFromProfile: Bool {
@@ -49,6 +56,26 @@ final class OnboardingViewModel {
 
     var canUseReturningUser: Bool {
         true
+    }
+
+    var isAuthenticated: Bool {
+        authService.isAuthenticated
+    }
+
+    var isAuthenticating: Bool {
+        authService.isAuthenticating
+    }
+
+    var authStatusMessage: String? {
+        authService.authStatusMessage
+    }
+
+    var authErrorMessage: String? {
+        authService.authErrorMessage
+    }
+
+    var authenticatedEmail: String? {
+        authService.currentUserEmail
     }
 
     var selectedDevice: PaddleDevice? {
@@ -72,6 +99,16 @@ final class OnboardingViewModel {
     func advance() {
         guard let next = Step(rawValue: currentStep.rawValue + 1) else { return }
         currentStep = next
+    }
+
+    func signUpWithEmail() async {
+        await authService.signUp(email: authEmail, password: authPassword)
+        authEmail = authService.currentUserEmail ?? authEmail
+    }
+
+    func signInWithEmail() async {
+        await authService.signIn(email: authEmail, password: authPassword)
+        authEmail = authService.currentUserEmail ?? authEmail
     }
 
     func signInReturningUser() -> PlayerProfile? {

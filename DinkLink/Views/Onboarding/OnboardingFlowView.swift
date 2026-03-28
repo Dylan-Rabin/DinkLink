@@ -293,7 +293,67 @@ struct OnboardingFlowView: View {
                 .background(AppTheme.smoke)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-            Picker("Dominant Arm", selection: $viewModel.dominantArm) {
+            // Text("Email and password are optional. Add them now if you want to post and like comments after onboarding.")
+              //  .dinkBody(12, color: AppTheme.ash)
+
+            TextField("Email (optional)", text: $viewModel.authEmail)
+                .font(.dinkBody(15))
+                .foregroundStyle(AppTheme.ink)
+                .tint(AppTheme.ink)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .padding()
+                .background(AppTheme.smoke)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            SecureField("Password (optional)", text: $viewModel.authPassword)
+                .font(.dinkBody(15))
+                .foregroundStyle(AppTheme.ink)
+                .tint(AppTheme.ink)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .padding()
+                .background(AppTheme.smoke)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            if viewModel.isAuthenticated {
+                Text("Signed in as \(viewModel.authenticatedEmail ?? "Authenticated player").")
+                    .dinkBody(12, color: AppTheme.neon)
+            } else if !viewModel.authEmail.isEmpty || !viewModel.authPassword.isEmpty {
+                HStack {
+                    Button(viewModel.isAuthenticating ? "Signing In..." : "Sign In") {
+                        Task {
+                            await viewModel.signInWithEmail()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.neon)
+                    .foregroundStyle(AppTheme.ink)
+                    .disabled(viewModel.isAuthenticating)
+
+                    Button("Create Account") {
+                        Task {
+                            await viewModel.signUpWithEmail()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(AppTheme.neon)
+                    .disabled(viewModel.isAuthenticating)
+                }
+            }
+
+            if let authStatusMessage = viewModel.authStatusMessage {
+                Text(authStatusMessage)
+                    .dinkBody(12, color: AppTheme.neon)
+            }
+
+            if let authErrorMessage = viewModel.authErrorMessage {
+                Text(authErrorMessage)
+                    .dinkBody(12, color: AppTheme.ash)
+            }
+
+/*            Picker("Dominant Arm", selection: $viewModel.dominantArm) {
                 ForEach(DominantArm.allCases) { arm in
                     Text(arm.rawValue).tag(arm)
                 }
@@ -316,6 +376,7 @@ struct OnboardingFlowView: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
+ */
             Button("Continue to Paddle Sync") {
                 viewModel.advance()
             }
@@ -418,6 +479,9 @@ struct OnboardingFlowView: View {
         viewModel: OnboardingViewModel(
             bluetoothService: MockBluetoothService(),
             persistenceService: PreviewPersistenceService(),
+            authService: SupabaseAuthService(
+                storage: UserDefaults(suiteName: "OnboardingPreview") ?? .standard
+            ),
             existingProfile: nil
         ),
         onComplete: { _ in }
