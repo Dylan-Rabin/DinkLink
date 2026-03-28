@@ -142,7 +142,7 @@ struct RecentScoresView: View {
             RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
         )
-        .task {
+        .task(id: commentLoadTaskID(for: session)) {
             await viewModel.loadComments(for: session.id)
         }
     }
@@ -252,6 +252,39 @@ struct RecentScoresView: View {
 
             Text(comment.body)
                 .dinkBody(13, color: AppTheme.smoke)
+
+            HStack {
+                Button {
+                    Task {
+                        await viewModel.toggleLike(for: comment)
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        if viewModel.isTogglingLike(commentID: comment.id) {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(AppTheme.neon)
+                        } else {
+                            Image(systemName: viewModel.isLiked(commentID: comment.id) ? "heart.fill" : "heart")
+                                .foregroundStyle(
+                                    viewModel.isLiked(commentID: comment.id) ? AppTheme.neon : AppTheme.ash
+                                )
+                        }
+
+                        Text("\(viewModel.likeCount(for: comment.id))")
+                            .dinkBody(11, color: AppTheme.ash)
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(!authService.isAuthenticated || viewModel.isTogglingLike(commentID: comment.id))
+
+                Spacer()
+
+                if !authService.isAuthenticated {
+                    Text("Sign in to like")
+                        .dinkBody(11, color: AppTheme.ash)
+                }
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -265,5 +298,9 @@ struct RecentScoresView: View {
         }
 
         return "Posting as \(profile.name)"
+    }
+
+    private func commentLoadTaskID(for session: StoredGameSession) -> String {
+        "\(session.id.uuidString)-\(authService.currentUserID?.uuidString ?? "anon")"
     }
 }

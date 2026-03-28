@@ -226,6 +226,18 @@ struct SupabaseAuthSession: Codable, Hashable {
     let expiresAt: Date?
 }
 
+struct CommentLikeRecord: Codable, Hashable {
+    let id: UUID
+    let commentID: UUID
+    let userID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case commentID = "comment_id"
+        case userID = "user_id"
+    }
+}
+
 @Model
 final class PlayerProfile {
     @Attribute(.unique) var id: UUID

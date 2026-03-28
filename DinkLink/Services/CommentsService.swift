@@ -2,6 +2,7 @@ import Foundation
 
 protocol CommentsServiceProtocol {
     func fetchComments(for itemID: UUID) async throws -> [PublicComment]
+    func fetchLikes(for commentIDs: [UUID]) async throws -> [CommentLikeRecord]
     func createComment(
         itemID: UUID,
         userID: UUID,
@@ -9,6 +10,16 @@ protocol CommentsServiceProtocol {
         accessToken: String,
         body: String
     ) async throws -> PublicComment
+    func likeComment(
+        commentID: UUID,
+        userID: UUID,
+        accessToken: String
+    ) async throws
+    func unlikeComment(
+        commentID: UUID,
+        userID: UUID,
+        accessToken: String
+    ) async throws
 }
 
 struct SupabaseCommentsService: CommentsServiceProtocol {
@@ -50,7 +61,7 @@ struct SupabaseCommentsService: CommentsServiceProtocol {
             resolvingAgainstBaseURL: false
         )
         components?.queryItems = [
-            URLQueryItem(name: "select", value: "id,item_id,author_name,body,created_at"),
+            URLQueryItem(name: "select", value: "id,item_id,user_id,author_name,body,created_at"),
             URLQueryItem(name: "item_id", value: "eq.\(itemID.uuidString.lowercased())"),
             URLQueryItem(name: "order", value: "created_at.desc")
         ]
@@ -66,6 +77,35 @@ struct SupabaseCommentsService: CommentsServiceProtocol {
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)
         return try decoder.decode([PublicComment].self, from: data)
+    }
+
+    func fetchLikes(for commentIDs: [UUID]) async throws -> [CommentLikeRecord] {
+        guard !commentIDs.isEmpty else { return [] }
+
+        let joinedIDs = commentIDs
+            .map { $0.uuidString.lowercased() }
+            .joined(separator: ",")
+
+        var components = URLComponents(
+            url: SupabaseConfiguration.restURL.appending(path: "comment_likes"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [
+            URLQueryItem(name: "select", value: "id,comment_id,user_id"),
+            URLQueryItem(name: "comment_id", value: "in.(\(joinedIDs))")
+        ]
+
+        guard let url = components?.url else {
+            throw CommentsServiceError.invalidRequest
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        applyHeaders(to: &request)
+
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        return try decoder.decode([CommentLikeRecord].self, from: data)
     }
 
     func createComment(
@@ -99,6 +139,48 @@ struct SupabaseCommentsService: CommentsServiceProtocol {
         return createdComment
     }
 
+    func likeComment(
+        commentID: UUID,
+        userID: UUID,
+        accessToken: String
+    ) async throws {
+        var request = URLRequest(url: SupabaseConfiguration.restURL.appending(path: "comment_likes"))
+        request.httpMethod = "POST"
+        applyHeaders(to: &request, bearerToken: accessToken)
+
+        let payload = CommentLikePayload(commentID: commentID, userID: userID)
+        request.httpBody = try encoder.encode(payload)
+
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+    }
+
+    func unlikeComment(
+        commentID: UUID,
+        userID: UUID,
+        accessToken: String
+    ) async throws {
+        var components = URLComponents(
+            url: SupabaseConfiguration.restURL.appending(path: "comment_likes"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [
+            URLQueryItem(name: "comment_id", value: "eq.\(commentID.uuidString.lowercased())"),
+            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString.lowercased())")
+        ]
+
+        guard let url = components?.url else {
+            throw CommentsServiceError.invalidRequest
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        applyHeaders(to: &request, bearerToken: accessToken)
+
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+    }
+
     private func applyHeaders(to request: inout URLRequest, bearerToken: String? = nil) {
         request.setValue(SupabaseConfiguration.publishableKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(bearerToken ?? SupabaseConfiguration.publishableKey)", forHTTPHeaderField: "Authorization")
@@ -115,6 +197,16 @@ struct SupabaseCommentsService: CommentsServiceProtocol {
             let message = String(data: data, encoding: .utf8)
             throw CommentsServiceError.requestFailed(statusCode: httpResponse.statusCode, message: message)
         }
+    }
+}
+
+private struct CommentLikePayload: Encodable {
+    let commentID: UUID
+    let userID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case commentID = "comment_id"
+        case userID = "user_id"
     }
 }
 
