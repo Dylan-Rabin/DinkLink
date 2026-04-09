@@ -3,6 +3,7 @@ import SwiftData
 
 protocol PersistenceServiceProtocol {
     func seedSampleSessionsIfNeeded()
+    func fetchSavedSessions() -> [StoredGameSession]
     func saveProfile(
         name: String,
         locationName: String,
@@ -24,6 +25,11 @@ struct SwiftDataPersistenceService: PersistenceServiceProtocol {
 
         SampleData.sampleSessions.forEach(context.insert)
         try? context.save()
+    }
+
+    func fetchSavedSessions() -> [StoredGameSession] {
+        let descriptor = FetchDescriptor<StoredGameSession>()
+        return (try? context.fetch(descriptor)) ?? []
     }
 
     func saveProfile(

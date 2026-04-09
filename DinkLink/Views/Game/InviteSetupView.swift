@@ -5,6 +5,7 @@ struct InviteSetupView: View {
     let mode: GameMode
     let bluetoothService: MockBluetoothService
     let persistenceService: PersistenceServiceProtocol
+    let authService: SupabaseAuthService
 
     @State private var opponentName = ""
     @State private var includeOpponent = true
@@ -62,7 +63,9 @@ struct InviteSetupView: View {
                     mode: mode,
                     players: players,
                     bluetoothService: bluetoothService,
-                    persistenceService: persistenceService
+                    persistenceService: persistenceService,
+                    authService: authService,
+                    progressionPersistenceService: SupabaseProgressionPersistenceService()
                 )
             )
         }

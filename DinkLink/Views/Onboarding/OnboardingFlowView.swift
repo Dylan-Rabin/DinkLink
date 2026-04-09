@@ -490,6 +490,7 @@ struct OnboardingFlowView: View {
 
 private struct PreviewPersistenceService: PersistenceServiceProtocol {
     func seedSampleSessionsIfNeeded() {}
+    func fetchSavedSessions() -> [StoredGameSession] { [] }
     func saveProfile(name: String, locationName: String, dominantArm: DominantArm, skillLevel: SkillLevel, paddleName: String) throws -> PlayerProfile {
         PlayerProfile(
             name: name,

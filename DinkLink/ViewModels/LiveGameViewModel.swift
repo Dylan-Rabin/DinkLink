@@ -27,6 +27,10 @@ final class LiveGameViewModel {
     @ObservationIgnored
     private let persistenceService: PersistenceServiceProtocol
     @ObservationIgnored
+    private let authService: SupabaseAuthService
+    @ObservationIgnored
+    private let progressionPersistenceService: ProgressionPersistenceServiceProtocol
+    @ObservationIgnored
     private let sessionStartDate: Date
     @ObservationIgnored
     private var timer: Timer?
@@ -37,11 +41,15 @@ final class LiveGameViewModel {
         mode: GameMode,
         players: [Player],
         bluetoothService: BluetoothServiceProtocol,
-        persistenceService: PersistenceServiceProtocol
+        persistenceService: PersistenceServiceProtocol,
+        authService: SupabaseAuthService,
+        progressionPersistenceService: ProgressionPersistenceServiceProtocol
     ) {
         self.mode = mode
         self.bluetoothService = bluetoothService
         self.persistenceService = persistenceService
+        self.authService = authService
+        self.progressionPersistenceService = progressionPersistenceService
         sessionStartDate = .now
         playerMetrics = players.map(PlayerGameMetrics.init)
         cupWins = Array(repeating: 0, count: players.count)
@@ -225,12 +233,14 @@ final class LiveGameViewModel {
         let longestStreak = playerMetrics.map(\.dinkBestStreak).max() ?? 0
         let totalVolleys = playerMetrics.reduce(0) { $0 + $1.validVolleys }
         let bestRally = rallies.map(\.hits).max() ?? 0
+        let sessionEndDate = Date.now
+        let priorSessions = persistenceService.fetchSavedSessions()
 
         persistenceService.saveSession(
             SessionDraft(
                 mode: mode,
                 startDate: sessionStartDate,
-                endDate: .now,
+                endDate: sessionEndDate,
                 playerOneName: playerOne?.player.name ?? "Player 1",
                 playerTwoName: playerTwo?.player.name ?? "Solo Session",
                 playerOneScore: playerOne?.points ?? roundScore(for: 0),
@@ -245,6 +255,59 @@ final class LiveGameViewModel {
                 bestRallyLength: bestRally
             )
         )
+
+        syncProgressionIfPossible(
+            sessionEndDate: sessionEndDate,
+            totalHits: stats.totalHits,
+            sweetSpotPercentage: stats.sweetSpot,
+            maxSwingSpeed: stats.max,
+            priorSessions: priorSessions
+        )
+    }
+
+    private func syncProgressionIfPossible(
+        sessionEndDate: Date,
+        totalHits: Int,
+        sweetSpotPercentage: Double,
+        maxSwingSpeed: Double,
+        priorSessions: [StoredGameSession]
+    ) {
+        guard
+            let userID = authService.currentUserID,
+            let accessToken = authService.accessToken
+        else {
+            return
+        }
+
+        let previousProgression = ProgressionService.buildProgression(
+            userID: userID.uuidString,
+            sessions: priorSessions
+        )
+        let sessionStats = SessionStats(
+            durationMinutes: max(1, Int(sessionEndDate.timeIntervalSince(sessionStartDate) / 60)),
+            totalHits: totalHits,
+            sweetSpotPercentage: sweetSpotPercentage,
+            playedWithFriend: playerMetrics.count > 1,
+            isNewSwingSpeedPB: maxSwingSpeed > (priorSessions.map(\.maxSwingSpeed).max() ?? 0),
+            isNewSweetSpotPB: sweetSpotPercentage > (priorSessions.map(\.sweetSpotPercentage).max() ?? 0)
+        )
+        let awardResult = ProgressionService.applySessionXP(
+            previous: previousProgression.progression,
+            stats: sessionStats
+        )
+
+        Task {
+            try? await progressionPersistenceService.applySessionAward(
+                userID: userID,
+                accessToken: accessToken,
+                awardResult: awardResult,
+                metadata: [
+                    "mode": mode.rawValue,
+                    "winner": sessionWinner,
+                    "hits": String(totalHits)
+                ]
+            )
+        }
     }
 
     private func roundScore(for index: Int) -> Int {

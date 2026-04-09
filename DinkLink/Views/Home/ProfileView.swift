@@ -7,7 +7,9 @@ struct ProfileView: View {
     let profile: PlayerProfile
     let bluetoothService: MockBluetoothService
     let authService: SupabaseAuthService
+    let sessions: [StoredGameSession]
     let onLogOut: (PlayerProfile) -> Void
+    private let progressionPersistenceService: ProgressionPersistenceServiceProtocol
 
     @State private var locationName: String
     @State private var dominantArm: DominantArm
@@ -15,16 +17,22 @@ struct ProfileView: View {
     @State private var saveMessage: String?
     @State private var authEmail = ""
     @State private var authPassword = ""
+    @State private var remoteProgression: UserProgression?
+    @State private var progressionErrorMessage: String?
 
     init(
         profile: PlayerProfile,
         bluetoothService: MockBluetoothService,
         authService: SupabaseAuthService,
+        sessions: [StoredGameSession],
+        progressionPersistenceService: ProgressionPersistenceServiceProtocol = SupabaseProgressionPersistenceService(),
         onLogOut: @escaping (PlayerProfile) -> Void
     ) {
         self.profile = profile
         self.bluetoothService = bluetoothService
         self.authService = authService
+        self.sessions = sessions
+        self.progressionPersistenceService = progressionPersistenceService
         self.onLogOut = onLogOut
         _locationName = State(initialValue: profile.locationName)
         _dominantArm = State(initialValue: profile.dominantArm)
@@ -62,6 +70,8 @@ struct ProfileView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
 
+                        progressionCard
+
                         VStack(alignment: .leading, spacing: 16) {
                             Text("Player Settings")
                                 .dinkHeading(20, color: AppTheme.smoke)
@@ -84,7 +94,7 @@ struct ProfileView: View {
                                 .background(AppTheme.smoke)
                                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                         /*   Text("Dominant Arm")
+                            /* Text("Dominant Arm")
                                 .dinkBody(11, color: AppTheme.ash)
 
                             Picker("Dominant Arm", selection: $dominantArm) {
@@ -113,7 +123,9 @@ struct ProfileView: View {
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                          */  Button("Save Changes") {
+                            */
+
+                            Button("Save Changes") {
                                 saveProfileChanges()
                             }
                             .buttonStyle(.borderedProminent)
@@ -250,6 +262,9 @@ struct ProfileView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
+        .task(id: authService.currentUserID?.uuidString) {
+            await loadRemoteProgression()
+        }
     }
 
     private func detailRow(title: String, value: String) -> some View {
@@ -260,6 +275,89 @@ struct ProfileView: View {
             Text(value)
                 .dinkBody(13, color: AppTheme.smoke)
         }
+    }
+
+    private var progressionSummary: (progression: UserProgression, latestAward: XPAwardResult?) {
+        ProgressionService.buildProgression(for: profile, sessions: sessions)
+    }
+
+    private var displayedProgression: UserProgression {
+        remoteProgression ?? progressionSummary.progression
+    }
+
+    private var progressionCardViewData: ProgressionCardViewData {
+        ProgressionService.buildProgressionCardViewData(from: displayedProgression)
+    }
+
+    private var progressionCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Progression")
+                        .dinkHeading(20, color: AppTheme.smoke)
+
+                    Text(displayedProgression.rank.badgeTitle)
+                        .dinkBody(12, color: AppTheme.ash)
+                }
+
+                Spacer()
+
+                Text("LVL \(progressionCardViewData.level)")
+                    .dinkHeading(20, color: AppTheme.neon)
+            }
+
+            HStack {
+                statChip(title: "Rank", value: progressionCardViewData.rankBadge)
+                statChip(title: "Total XP", value: "\(progressionCardViewData.totalXP)")
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                ProgressView(value: progressionCardViewData.progressBarValue)
+                    .tint(AppTheme.neon)
+
+                HStack {
+                    Text(progressionCardViewData.currentLevelXPRangeLabel)
+                        .dinkBody(11, color: AppTheme.ash)
+                    Spacer()
+                    Text(progressionCardViewData.nextLevelLabel)
+                        .dinkBody(11, color: AppTheme.neon)
+                }
+            }
+
+            if let latestAward = progressionSummary.latestAward {
+                Text("+\(latestAward.xpGained) XP from your latest session")
+                    .dinkBody(12, color: AppTheme.smoke)
+            } else {
+                Text("Finish sessions to earn XP and climb ranks.")
+                    .dinkBody(12, color: AppTheme.smoke)
+            }
+
+            if let progressionErrorMessage {
+                Text(progressionErrorMessage)
+                    .dinkBody(11, color: AppTheme.ash)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.steel.opacity(0.92))
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private func statChip(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title.uppercased())
+                .dinkBody(10, color: AppTheme.ash)
+            Text(value)
+                .dinkHeading(15, color: AppTheme.neon)
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .background(AppTheme.graphite.opacity(0.92))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     @MainActor
@@ -279,5 +377,34 @@ struct ProfileView: View {
     @MainActor
     private func logOut() {
         onLogOut(profile)
+    }
+
+    @MainActor
+    private func loadRemoteProgression() async {
+        guard
+            let userID = authService.currentUserID,
+            let accessToken = authService.accessToken
+        else {
+            remoteProgression = nil
+            progressionErrorMessage = nil
+            return
+        }
+
+        do {
+            let localProgression = progressionSummary.progression
+            let fetchedRemoteProgression = try await progressionPersistenceService
+                .fetchProgression(userID: userID, accessToken: accessToken)
+            remoteProgression = try await progressionPersistenceService.backfillProgressionIfNeeded(
+                userID: userID,
+                accessToken: accessToken,
+                localProgression: localProgression,
+                remoteProgression: fetchedRemoteProgression,
+                sessionCount: sessions.count
+            )
+            progressionErrorMessage = nil
+        } catch {
+            remoteProgression = nil
+            progressionErrorMessage = "Using local progression until cloud sync is available."
+        }
     }
 }

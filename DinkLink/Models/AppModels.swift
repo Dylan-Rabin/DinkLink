@@ -238,6 +238,74 @@ struct CommentLikeRecord: Codable, Hashable {
     }
 }
 
+enum ProgressionRank: String, Codable, CaseIterable {
+    case bronze
+    case silver
+    case gold
+    case diamond
+
+    var badgeTitle: String {
+        switch self {
+        case .bronze:
+            return "Bronze Paddle"
+        case .silver:
+            return "Silver Spin"
+        case .gold:
+            return "Gold Rally"
+        case .diamond:
+            return "Diamond Dink"
+        }
+    }
+}
+
+struct UserProgression: Codable, Hashable {
+    let userID: String
+    let totalXP: Int
+    let level: Int
+    let rank: ProgressionRank
+    let currentLevelMinXP: Int
+    let nextLevelMinXP: Int?
+    let progressInLevel: Int
+    let progressToNextLevel: Double
+    let isMaxLevel: Bool
+    let updatedAt: String
+}
+
+struct SessionStats: Hashable {
+    let durationMinutes: Int
+    let totalHits: Int
+    let sweetSpotPercentage: Double
+    let playedWithFriend: Bool
+    let isNewSwingSpeedPB: Bool
+    let isNewSweetSpotPB: Bool
+}
+
+struct XPBreakdownItem: Hashable, Codable {
+    let source: String
+    let xp: Int
+}
+
+struct XPAwardResult: Hashable {
+    let xpGained: Int
+    let leveledUp: Bool
+    let oldLevel: Int
+    let newLevel: Int
+    let rankedUp: Bool
+    let oldRank: ProgressionRank
+    let newRank: ProgressionRank
+    let updatedProgression: UserProgression
+    let breakdown: [XPBreakdownItem]
+}
+
+struct ProgressionCardViewData: Hashable {
+    let rankBadge: String
+    let level: Int
+    let totalXP: Int
+    let progressBarValue: Double
+    let currentLevelXPRangeLabel: String
+    let nextLevelLabel: String
+}
+
 @Model
 final class PlayerProfile {
     @Attribute(.unique) var id: UUID

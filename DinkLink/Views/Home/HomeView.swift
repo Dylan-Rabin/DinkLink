@@ -10,7 +10,7 @@ struct MainTabView: View {
 
     var body: some View {
         TabView {
-            HomeView(profile: profile, bluetoothService: bluetoothService)
+            HomeView(profile: profile, bluetoothService: bluetoothService, authService: authService)
                 .tabItem {
                     Label("Home", systemImage: "house.fill")
                 }
@@ -29,6 +29,7 @@ struct MainTabView: View {
                 profile: profile,
                 bluetoothService: bluetoothService,
                 authService: authService,
+                sessions: displaySessions,
                 onLogOut: onLogOut
             )
                 .tabItem {
@@ -48,6 +49,7 @@ struct HomeView: View {
 
     let profile: PlayerProfile
     let bluetoothService: MockBluetoothService
+    let authService: SupabaseAuthService
 
     @State private var viewModel: HomeViewModel
     @State private var selectedMode: GameMode?
@@ -57,10 +59,12 @@ struct HomeView: View {
     init(
         profile: PlayerProfile,
         bluetoothService: MockBluetoothService,
+        authService: SupabaseAuthService,
         weatherService: WeatherServiceProtocol = OpenMeteoWeatherService()
     ) {
         self.profile = profile
         self.bluetoothService = bluetoothService
+        self.authService = authService
         _viewModel = State(initialValue: HomeViewModel(weatherService: weatherService))
     }
 
@@ -132,7 +136,8 @@ struct HomeView: View {
                     primaryPlayer: profile.asPlayer,
                     mode: mode,
                     bluetoothService: bluetoothService,
-                    persistenceService: SwiftDataPersistenceService(context: modelContext)
+                    persistenceService: SwiftDataPersistenceService(context: modelContext),
+                    authService: authService
                 )
             }
         }
