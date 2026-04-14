@@ -102,12 +102,39 @@ struct SupabaseProgressionPersistenceService: ProgressionPersistenceServiceProto
             accessToken: accessToken,
             totalXP: awardResult.updatedProgression.totalXP
         )
+        // Also keep user_profiles.total_xp in sync (new canonical table).
+        try await upsertUserProfileXP(
+            userID: userID,
+            accessToken: accessToken,
+            totalXP: awardResult.updatedProgression.totalXP
+        )
         try await insertXPEvents(
             userID: userID,
             accessToken: accessToken,
             breakdown: awardResult.breakdown,
             metadata: metadata
         )
+    }
+
+    private func upsertUserProfileXP(
+        userID: UUID,
+        accessToken: String,
+        totalXP: Int
+    ) async throws {
+        var request = URLRequest(url: SupabaseConfiguration.restURL.appending(path: "user_profiles"))
+        request.httpMethod = "POST"
+        applyHeaders(to: &request, accessToken: accessToken)
+        request.setValue("resolution=merge-duplicates", forHTTPHeaderField: "Prefer")
+
+        let payload = [UserProfileXPRecord(
+            userID: userID,
+            totalXP: totalXP,
+            xpUpdatedAt: ISO8601DateFormatter().string(from: .now)
+        )]
+        request.httpBody = try encoder.encode(payload)
+
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
     }
 
     private func upsertProgression(
@@ -233,5 +260,17 @@ private struct XPEventWriteRecord: Encodable {
         case source
         case xp
         case metadata
+    }
+}
+
+private struct UserProfileXPRecord: Encodable {
+    let userID: UUID
+    let totalXP: Int
+    let xpUpdatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case totalXP = "total_xp"
+        case xpUpdatedAt = "xp_updated_at"
     }
 }

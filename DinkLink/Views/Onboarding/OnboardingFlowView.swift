@@ -10,6 +10,7 @@ struct OnboardingFlowView: View {
     @State private var ballLifted = false
     @State private var paddleTilted = false
     @State private var glowExpanded = false
+    @State private var showsLoginForm = false
 
     var body: some View {
         ZStack {
@@ -214,7 +215,7 @@ struct OnboardingFlowView: View {
 
     private var introStep: some View {
         VStack(alignment: .leading, spacing: 24) {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 20) {
                 Text("Train smarter.")
                     .dinkHeading(24, color: AppTheme.smoke)
 
@@ -228,6 +229,86 @@ struct OnboardingFlowView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(AppTheme.neon)
                 .foregroundStyle(AppTheme.ink)
+                .frame(maxWidth: .infinity)
+
+                HStack(spacing: 8) {
+                    Rectangle()
+                        .fill(AppTheme.steel)
+                        .frame(height: 1)
+                    Text("or")
+                        .dinkBody(13, color: AppTheme.ash)
+                        .fixedSize()
+                    Rectangle()
+                        .fill(AppTheme.steel)
+                        .frame(height: 1)
+                }
+
+                if showsLoginForm {
+                    VStack(alignment: .leading, spacing: 12) {
+                        TextField("Email", text: $viewModel.authEmail)
+                            .font(.dinkBody(15))
+                            .foregroundStyle(AppTheme.ink)
+                            .tint(AppTheme.ink)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.emailAddress)
+                            .autocorrectionDisabled()
+                            .padding()
+                            .background(AppTheme.smoke)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                        SecureField("Password", text: $viewModel.authPassword)
+                            .font(.dinkBody(15))
+                            .foregroundStyle(AppTheme.ink)
+                            .tint(AppTheme.ink)
+                            .padding()
+                            .background(AppTheme.smoke)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                        if let error = viewModel.authErrorMessage, !error.isEmpty {
+                            Text(error)
+                                .dinkBody(13, color: .red)
+                        }
+
+                        HStack(spacing: 12) {
+                            Button("Sign In") {
+                                Task {
+                                    await viewModel.signInWithEmail()
+                                    guard viewModel.isAuthenticated else { return }
+                                    // Always go to paddle sync after login so the user
+                                    // can confirm or update their paired paddle.
+                                    viewModel.currentStep = .paddleSync
+                                    withAnimation(.spring(response: 0.7, dampingFraction: 0.9)) {
+                                        showsSplash = false
+                                    }
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(AppTheme.neon)
+                            .foregroundStyle(AppTheme.ink)
+                            .disabled(viewModel.isAuthenticating || viewModel.authEmail.isEmpty || viewModel.authPassword.isEmpty)
+
+                            Button("Cancel") {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    showsLoginForm = false
+                                }
+                                viewModel.authEmail = ""
+                                viewModel.authPassword = ""
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(AppTheme.ash)
+                        }
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                } else {
+                    Button("Log In") {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showsLoginForm = true
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(AppTheme.neon)
+                    .frame(maxWidth: .infinity)
+                }
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -239,6 +320,7 @@ struct OnboardingFlowView: View {
                 )
             )
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .animation(.easeInOut(duration: 0.2), value: showsLoginForm)
 
             VStack(alignment: .leading, spacing: 24) {
                 Text("Returning player?")
@@ -275,6 +357,7 @@ struct OnboardingFlowView: View {
             Text("Player Profile")
                 .dinkHeading(22, color: AppTheme.smoke)
 
+            // — Required profile fields —
             TextField("Player name", text: $viewModel.playerName)
                 .font(.dinkBody(15))
                 .foregroundStyle(AppTheme.ink)
@@ -293,90 +376,60 @@ struct OnboardingFlowView: View {
                 .background(AppTheme.smoke)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-            // Text("Email and password are optional. Add them now if you want to post and like comments after onboarding.")
-              //  .dinkBody(12, color: AppTheme.ash)
+            Rectangle()
+                .fill(AppTheme.steel)
+                .frame(height: 1)
 
-            TextField("Email (optional)", text: $viewModel.authEmail)
-                .font(.dinkBody(15))
-                .foregroundStyle(AppTheme.ink)
-                .tint(AppTheme.ink)
-                .keyboardType(.emailAddress)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .padding()
-                .background(AppTheme.smoke)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-            SecureField("Password (optional)", text: $viewModel.authPassword)
-                .font(.dinkBody(15))
-                .foregroundStyle(AppTheme.ink)
-                .tint(AppTheme.ink)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .padding()
-                .background(AppTheme.smoke)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
+            // — Account creation (optional) —
             if viewModel.isAuthenticated {
-                Text("Signed in as \(viewModel.authenticatedEmail ?? "Authenticated player").")
-                    .dinkBody(12, color: AppTheme.neon)
-            } else if !viewModel.authEmail.isEmpty || !viewModel.authPassword.isEmpty {
-                HStack {
-                    Button(viewModel.isAuthenticating ? "Signing In..." : "Sign In") {
-                        Task {
-                            await viewModel.signInWithEmail()
-                        }
+                Label("Signed in as \(viewModel.authenticatedEmail ?? "your account").", systemImage: "checkmark.circle.fill")
+                    .dinkBody(14, color: AppTheme.neon)
+
+            } else {
+                // Create account form
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Create your account (optional)")
+                        .dinkBody(13, color: AppTheme.ash)
+
+                    TextField("Email", text: $viewModel.authEmail)
+                        .font(.dinkBody(15))
+                        .foregroundStyle(AppTheme.ink)
+                        .tint(AppTheme.ink)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .padding()
+                        .background(AppTheme.smoke)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                    SecureField("Password (6+ characters)", text: $viewModel.authPassword)
+                        .font(.dinkBody(15))
+                        .foregroundStyle(AppTheme.ink)
+                        .tint(AppTheme.ink)
+                        .padding()
+                        .background(AppTheme.smoke)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                    if let error = viewModel.authErrorMessage {
+                        Text(error)
+                            .dinkBody(13, color: .red)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.neon)
-                    .foregroundStyle(AppTheme.ink)
-                    .disabled(viewModel.isAuthenticating)
 
-                    Button("Create Account") {
-                        Task {
-                            await viewModel.signUpWithEmail()
+                    if !viewModel.authEmail.isEmpty && !viewModel.authPassword.isEmpty {
+                        Button(viewModel.isAuthenticating ? "Creating Account..." : "Create Account") {
+                            Task {
+                                await viewModel.signUpWithEmail()
+                            }
                         }
+                        .buttonStyle(.borderedProminent)
+                        .tint(AppTheme.neon)
+                        .foregroundStyle(AppTheme.ink)
+                        .disabled(viewModel.isAuthenticating)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(AppTheme.neon)
-                    .disabled(viewModel.isAuthenticating)
                 }
             }
 
-            if let authStatusMessage = viewModel.authStatusMessage {
-                Text(authStatusMessage)
-                    .dinkBody(12, color: AppTheme.neon)
-            }
-
-            if let authErrorMessage = viewModel.authErrorMessage {
-                Text(authErrorMessage)
-                    .dinkBody(12, color: AppTheme.ash)
-            }
-
-/*            Picker("Dominant Arm", selection: $viewModel.dominantArm) {
-                ForEach(DominantArm.allCases) { arm in
-                    Text(arm.rawValue).tag(arm)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            Picker("Skill Level", selection: $viewModel.skillLevel) {
-                ForEach(SkillLevel.allCases) { level in
-                    Text(level.rawValue).tag(level)
-                }
-            }
-            .pickerStyle(.menu)
-            .padding()
-            .background(
-                LinearGradient(
-                    colors: [AppTheme.graphite, AppTheme.steel],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
- */
             Button("Continue to Paddle Sync") {
                 viewModel.advance()
             }
@@ -449,6 +502,15 @@ struct OnboardingFlowView: View {
                 .foregroundStyle(AppTheme.ink)
                 .disabled(viewModel.selectedDevice == nil || viewModel.isConnecting)
             }
+
+            Button("Skip for now") {
+                if let profile = viewModel.completeOnboarding() {
+                    onComplete(profile)
+                }
+            }
+            .buttonStyle(.bordered)
+            .tint(AppTheme.ash)
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -489,9 +551,9 @@ struct OnboardingFlowView: View {
 }
 
 private struct PreviewPersistenceService: PersistenceServiceProtocol {
-    func seedSampleSessionsIfNeeded() {}
+    func seedDylanSessions(profileID: UUID) {}
     func fetchSavedSessions() -> [StoredGameSession] { [] }
-    func saveProfile(name: String, locationName: String, dominantArm: DominantArm, skillLevel: SkillLevel, paddleName: String) throws -> PlayerProfile {
+    func saveProfile(name: String, locationName: String, dominantArm: DominantArm, skillLevel: SkillLevel, paddleName: String, supabaseUserID: UUID?) throws -> PlayerProfile {
         PlayerProfile(
             name: name,
             locationName: locationName,

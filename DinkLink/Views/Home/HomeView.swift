@@ -7,15 +7,16 @@ struct MainTabView: View {
     let bluetoothService: MockBluetoothService
     let authService: SupabaseAuthService
     let onLogOut: (PlayerProfile) -> Void
+    var onSessionSaved: (() -> Void)? = nil
 
     var body: some View {
         TabView {
-            HomeView(profile: profile, bluetoothService: bluetoothService, authService: authService)
+            HomeView(profile: profile, bluetoothService: bluetoothService, authService: authService, onSessionSaved: onSessionSaved)
                 .tabItem {
                     Label("Home", systemImage: "house.fill")
                 }
 
-            StatsView(profile: profile, sessions: displaySessions)
+            StatsView(profile: profile, sessions: sessions)
                 .tabItem {
                     Label("Stats", systemImage: "chart.line.uptrend.xyaxis")
                 }
@@ -29,7 +30,7 @@ struct MainTabView: View {
                 profile: profile,
                 bluetoothService: bluetoothService,
                 authService: authService,
-                sessions: displaySessions,
+                sessions: sessions,
                 onLogOut: onLogOut
             )
                 .tabItem {
@@ -39,9 +40,6 @@ struct MainTabView: View {
         .tint(AppTheme.neon)
     }
 
-    private var displaySessions: [StoredGameSession] {
-        sessions.isEmpty ? SampleData.sampleSessions : sessions
-    }
 }
 
 struct HomeView: View {
@@ -50,6 +48,7 @@ struct HomeView: View {
     let profile: PlayerProfile
     let bluetoothService: MockBluetoothService
     let authService: SupabaseAuthService
+    var onSessionSaved: (() -> Void)? = nil
 
     @State private var viewModel: HomeViewModel
     @State private var selectedMode: GameMode?
@@ -60,11 +59,13 @@ struct HomeView: View {
         profile: PlayerProfile,
         bluetoothService: MockBluetoothService,
         authService: SupabaseAuthService,
+        onSessionSaved: (() -> Void)? = nil,
         weatherService: WeatherServiceProtocol = OpenMeteoWeatherService()
     ) {
         self.profile = profile
         self.bluetoothService = bluetoothService
         self.authService = authService
+        self.onSessionSaved = onSessionSaved
         _viewModel = State(initialValue: HomeViewModel(weatherService: weatherService))
     }
 
@@ -134,10 +135,12 @@ struct HomeView: View {
             .navigationDestination(item: $selectedMode) { mode in
                 InviteSetupView(
                     primaryPlayer: profile.asPlayer,
+                    profileID: profile.id,
                     mode: mode,
                     bluetoothService: bluetoothService,
                     persistenceService: SwiftDataPersistenceService(context: modelContext),
-                    authService: authService
+                    authService: authService,
+                    onSessionSaved: onSessionSaved
                 )
             }
         }

@@ -180,6 +180,7 @@ struct SessionDraft {
     var longestStreak: Int
     var totalValidVolleys: Int
     var bestRallyLength: Int
+    var ownerProfileID: UUID?
 }
 
 struct PublicComment: Identifiable, Codable, Hashable {
@@ -315,6 +316,16 @@ final class PlayerProfile {
     var skillLevelRawValue: String
     var syncedPaddleName: String
     var completedOnboarding: Bool
+    // Phase 1 — Supabase sync
+    var supabaseProfileSynced: Bool = false
+    // Phase 3 — home location cache
+    var homeLocationLabel: String = ""
+    // Phase 6 — GPN integration
+    var gpnUsername: String = ""
+    // MVP — daily-play streak tracking
+    var currentStreak: Int = 0
+    var longestDailyStreak: Int = 0
+    var lastActiveDate: Date? = nil
 
     init(
         id: UUID = UUID(),
@@ -370,6 +381,14 @@ final class StoredGameSession {
     var longestStreak: Int
     var totalValidVolleys: Int
     var bestRallyLength: Int
+    // Phase 2 — Supabase sync
+    var remoteID: UUID? = nil
+    var isDirty: Bool = true
+    // MVP — challenge and Pickle Cup flags
+    var isChallenge: Bool = false
+    var isPickleCupWin: Bool = false
+    // Owner scoping — prevents sessions from leaking across profiles
+    var ownerProfileID: UUID?
 
     init(
         id: UUID = UUID(),
@@ -387,7 +406,8 @@ final class StoredGameSession {
         winnerName: String,
         longestStreak: Int,
         totalValidVolleys: Int,
-        bestRallyLength: Int
+        bestRallyLength: Int,
+        ownerProfileID: UUID? = nil
     ) {
         self.id = id
         modeRawValue = mode.rawValue
@@ -405,9 +425,79 @@ final class StoredGameSession {
         self.longestStreak = longestStreak
         self.totalValidVolleys = totalValidVolleys
         self.bestRallyLength = bestRallyLength
+        self.ownerProfileID = ownerProfileID
     }
 
     var mode: GameMode {
         GameMode(rawValue: modeRawValue) ?? .dinkSinks
+    }
+}
+
+// MARK: - Phase 3: Saved Locations
+
+@Model
+final class SavedLocation {
+    @Attribute(.unique) var id: UUID
+    var label: String
+    var placeName: String
+    var address: String
+    var latitude: Double
+    var longitude: Double
+    var isHome: Bool
+    var supabaseID: UUID? = nil
+    var isDirty: Bool = true
+    var createdAt: Date
+
+    init(
+        id: UUID = UUID(),
+        label: String,
+        placeName: String,
+        address: String = "",
+        latitude: Double = 0,
+        longitude: Double = 0,
+        isHome: Bool = false,
+        createdAt: Date = .now
+    ) {
+        self.id = id
+        self.label = label
+        self.placeName = placeName
+        self.address = address
+        self.latitude = latitude
+        self.longitude = longitude
+        self.isHome = isHome
+        self.createdAt = createdAt
+    }
+}
+
+// MARK: - Phase 1: Offline Sync Queue
+
+/// Serialised write queue for Supabase-bound operations when the device is offline.
+/// SyncService drains this queue oldest-first when connectivity is restored.
+@Model
+final class SyncQueueItem {
+    @Attribute(.unique) var id: UUID
+    /// Operation type. Allowed: upsert_profile | save_session | upsert_location | award_badge | xp_events
+    var operation: String
+    /// Target Supabase table name, e.g. "game_sessions"
+    var tableName: String
+    /// JSON-encoded request body to replay against the Supabase REST endpoint
+    var payload: Data
+    var createdAt: Date
+    var retryCount: Int
+
+    init(
+        id: UUID = UUID(),
+        operation: String,
+        tableName: String,
+        payload: Data,
+        createdAt: Date = .now,
+        retryCount: Int = 0
+    ) {
+        self.id = id
+        self.operation = operation
+        self.tableName = tableName
+        self.payload = payload
+        self.createdAt = createdAt
+        self.retryCount = retryCount
     }
 }

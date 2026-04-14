@@ -27,6 +27,14 @@ final class SupabaseAuthService {
         currentSession != nil
     }
 
+    /// True only when the session exists AND the access token has not expired
+    /// (with a 60-second buffer to account for clock skew and network latency).
+    var hasValidAccessToken: Bool {
+        guard let session = currentSession else { return false }
+        guard let expiresAt = session.expiresAt else { return true } // no expiry = treat as valid
+        return expiresAt.timeIntervalSinceNow > 60
+    }
+
     var accessToken: String? {
         currentSession?.accessToken
     }
@@ -75,6 +83,49 @@ final class SupabaseAuthService {
         authErrorMessage = nil
         authStatusMessage = "Signed out."
         storage.removeObject(forKey: SupabaseConfiguration.authSessionStorageKey)
+    }
+
+    /// Exchanges the stored refresh token for a new access token.
+    /// Called automatically on launch when the stored session has expired.
+    /// Returns `true` if the session was successfully refreshed.
+    @discardableResult
+    func refreshSessionIfNeeded() async -> Bool {
+        guard let token = currentSession?.refreshToken, !token.isEmpty else {
+            return false
+        }
+
+        guard var components = URLComponents(
+            url: SupabaseConfiguration.authURL.appending(path: "token"),
+            resolvingAgainstBaseURL: false
+        ) else { return false }
+
+        components.queryItems = [URLQueryItem(name: "grant_type", value: "refresh_token")]
+        guard let url = components.url else { return false }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(SupabaseConfiguration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        struct RefreshBody: Encodable { let refresh_token: String }
+        guard let body = try? encoder.encode(RefreshBody(refresh_token: token)) else { return false }
+        request.httpBody = body
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            try validate(response: response, data: data)
+            let authResponse = try decoder.decode(SupabaseAuthResponse.self, from: data)
+            if let newSession = authResponse.session {
+                currentSession = newSession
+                persist(session: newSession)
+                return true
+            }
+        } catch {
+            // Refresh token is invalid or expired — sign the user out cleanly.
+            signOut()
+        }
+        return false
     }
 
     private func authenticate(
@@ -131,12 +182,15 @@ final class SupabaseAuthService {
     private func loadStoredSession() {
         guard
             let data = storage.data(forKey: SupabaseConfiguration.authSessionStorageKey),
-            let session = try? decoder.decode(SupabaseAuthSession.self, from: data)
+            let storedSession = try? decoder.decode(SupabaseAuthSession.self, from: data)
         else {
             return
         }
 
-        currentSession = session
+        // If the access token is still valid (with a 60-second buffer), use it directly.
+        // If it's expired but we have a refresh token, set the session so
+        // refreshSessionIfNeeded() can exchange it — called from AppViewModel on launch.
+        currentSession = storedSession
     }
 
     private func validate(response: URLResponse, data: Data) throws {
@@ -145,8 +199,30 @@ final class SupabaseAuthService {
         }
 
         guard 200..<300 ~= httpResponse.statusCode else {
-            let message = String(data: data, encoding: .utf8)
-            throw AuthServiceError.requestFailed(statusCode: httpResponse.statusCode, message: message)
+            let friendly = friendlyError(from: data) ?? String(data: data, encoding: .utf8)
+            throw AuthServiceError.requestFailed(statusCode: httpResponse.statusCode, message: friendly)
+        }
+    }
+
+    private func friendlyError(from data: Data) -> String? {
+        struct SupabaseErrorBody: Decodable {
+            let error_code: String?
+            let msg: String?
+        }
+        guard let body = try? JSONDecoder().decode(SupabaseErrorBody.self, from: data) else { return nil }
+        switch body.error_code {
+        case "email_not_confirmed":
+            return "Your email isn't confirmed yet. Check your inbox and use Log In after confirming."
+        case "invalid_credentials":
+            return "Incorrect email or password."
+        case "over_email_send_rate_limit":
+            return "Confirmation email couldn't be sent right now. Your account may have been created — check your inbox (including spam), or try again in a few minutes."
+        case "email_address_not_authorized":
+            return "This email address isn't authorized for sign-up."
+        case "user_already_exists":
+            return "An account with this email already exists. Use Log In instead."
+        default:
+            return body.msg
         }
     }
 }
@@ -190,11 +266,11 @@ enum AuthServiceError: LocalizedError {
         switch self {
         case .invalidResponse:
             return "The auth service returned an invalid response."
-        case let .requestFailed(statusCode, message):
+        case let .requestFailed(_, message):
             if let message, !message.isEmpty {
-                return "Auth request failed (\(statusCode)): \(message)"
+                return message
             }
-            return "Auth request failed with status \(statusCode)."
+            return "Something went wrong. Please try again."
         }
     }
 }

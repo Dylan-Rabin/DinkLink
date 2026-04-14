@@ -26,12 +26,22 @@ final class OnboardingViewModel {
     var isConnecting = false
     var onboardingErrorMessage: String?
 
+    /// Set after a successful login when the remote profile was fetched and a
+    /// local SwiftData profile was created. The view should call onComplete with this.
+    var restoredProfileAfterLogin: PlayerProfile?
+
+    /// Called immediately after a successful sign-in or sign-up so the caller
+    /// can trigger a sync pass while the auth session is fresh.
+    var onSignedIn: (() -> Void)?
+
     @ObservationIgnored
     private let bluetoothService: BluetoothServiceProtocol
     @ObservationIgnored
     private let persistenceService: PersistenceServiceProtocol
     @ObservationIgnored
     private let authService: SupabaseAuthService
+    @ObservationIgnored
+    private let storedExistingProfile: PlayerProfile?
 
     init(
         bluetoothService: BluetoothServiceProtocol,
@@ -42,11 +52,18 @@ final class OnboardingViewModel {
         self.bluetoothService = bluetoothService
         self.persistenceService = persistenceService
         self.authService = authService
+        self.storedExistingProfile = existingProfile
         playerName = existingProfile?.name ?? ""
         playerLocation = existingProfile?.locationName ?? ""
         dominantArm = existingProfile?.dominantArm ?? .right
         skillLevel = existingProfile?.skillLevel ?? .beginner
         authEmail = authService.currentUserEmail ?? ""
+    }
+
+    /// Returns a completed profile if this device already has one, so returning
+    /// users who log in can be taken straight into the app without re-entering details.
+    var completedExistingProfile: PlayerProfile? {
+        storedExistingProfile?.completedOnboarding == true ? storedExistingProfile : nil
     }
 
     var canContinueFromProfile: Bool {
@@ -104,11 +121,63 @@ final class OnboardingViewModel {
     func signUpWithEmail() async {
         await authService.signUp(email: authEmail, password: authPassword)
         authEmail = authService.currentUserEmail ?? authEmail
+        guard authService.isAuthenticated,
+              let userID = authService.currentUserID,
+              let accessToken = authService.accessToken
+        else { return }
+
+        onSignedIn?()
+
+        // Immediately push the name + city the user just entered so the Supabase
+        // user_profiles row exists and round-trips correctly on future logins.
+        if !playerName.isEmpty {
+            let profileSync = UserProfileSyncService()
+            let stub = PlayerProfile(
+                id: userID,
+                name: playerName,
+                locationName: playerLocation,
+                dominantArm: dominantArm,
+                skillLevel: skillLevel,
+                syncedPaddleName: "Mock Paddle",
+                completedOnboarding: false
+            )
+            try? await profileSync.upsertProfile(stub, userID: userID, accessToken: accessToken)
+        }
     }
 
     func signInWithEmail() async {
         await authService.signIn(email: authEmail, password: authPassword)
         authEmail = authService.currentUserEmail ?? authEmail
+        guard authService.isAuthenticated,
+              let userID = authService.currentUserID,
+              let accessToken = authService.accessToken
+        else { return }
+
+        onSignedIn?()
+
+        // Pull down the remote profile so we can pre-fill name/city for the
+        // paddle-sync step. Whether or not a remote row exists, we always route
+        // through paddle sync so the user can confirm/update their paddle.
+        let profileSync = UserProfileSyncService()
+        if let remote = try? await profileSync.fetchProfile(userID: userID, accessToken: accessToken),
+           !remote.displayName.isEmpty {
+            playerName = remote.displayName
+            playerLocation = remote.homeCity
+        } else if playerName.isEmpty {
+            // No remote profile yet — pre-fill name from email prefix.
+            playerName = authEmail.components(separatedBy: "@").first ?? ""
+        }
+
+        // Create / update the local SwiftData profile so it exists when paddle
+        // sync completes and calls completeOnboarding().
+        restoredProfileAfterLogin = try? persistenceService.saveProfile(
+            name: playerName.isEmpty ? (authEmail.components(separatedBy: "@").first ?? "Player") : playerName,
+            locationName: playerLocation,
+            dominantArm: dominantArm,
+            skillLevel: skillLevel,
+            paddleName: "Mock Paddle",
+            supabaseUserID: userID
+        )
     }
 
     func signInReturningUser() -> PlayerProfile? {
@@ -118,7 +187,11 @@ final class OnboardingViewModel {
         skillLevel = .intermediate
         selectedDeviceID = availableDevices.first(where: { $0.name == "CourtSense One" })?.id
 
-        return saveProfile(paddleName: "CourtSense One")
+        let profile = saveProfile(paddleName: "CourtSense One")
+        if let profile {
+            persistenceService.seedDylanSessions(profileID: profile.id)
+        }
+        return profile
     }
 
     func completeOnboarding() -> PlayerProfile? {
@@ -134,7 +207,8 @@ final class OnboardingViewModel {
                 locationName: playerLocation,
                 dominantArm: dominantArm,
                 skillLevel: skillLevel,
-                paddleName: paddleName
+                paddleName: paddleName,
+                supabaseUserID: authService.currentUserID
             )
             onboardingErrorMessage = nil
             return profile

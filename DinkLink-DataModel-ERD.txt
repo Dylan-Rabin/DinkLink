@@ -1,0 +1,311 @@
+DinkLink — Extended Data Model / ERD
+Generated: April 13, 2026  |  Revised: April 13, 2026 (Option A + MVP Alignment)
+======================================================================
+
+
+======================================================================
+  LOCAL (SwiftData — on-device)
+======================================================================
+
+  PlayerProfile
+  ─────────────────────────────────
+  id                UUID   PK  (unique)
+  name              String
+  locationName      String      ← existing freetext location
+  dominantArmRawValue  String   ← enum: Right | Left | Ambidextrous
+  skillLevelRawValue   String   ← enum: Beginner | Intermediate | Advanced | Tournament
+  syncedPaddleName  String
+  completedOnboarding  Bool
+  currentStreak     Int         NEW ← consecutive daily-play days
+  longestStreak     Int         NEW ← all-time best streak
+  lastActiveDate    Date?       NEW ← last day a session was completed (for streak calc)
+
+  StoredGameSession
+  ─────────────────────────────────
+  id                UUID   PK  (unique)
+  modeRawValue      String      ← enum: Dink Sinks | Volley Wallies | The Real Deal | Pickle Cup
+  startDate         Date
+  endDate           Date
+  playerOneName     String
+  playerTwoName     String
+  playerOneScore    Int
+  playerTwoScore    Int
+  averageSwingSpeed Double      (MPH)
+  maxSwingSpeed     Double      (MPH)
+  sweetSpotPercentage Double    (0–100)
+  totalHits         Int
+  winnerName        String
+  longestStreak     Int
+  totalValidVolleys Int
+  bestRallyLength   Int
+  isChallenge       Bool        NEW default false ← true = challenge match (+100 XP if won)
+  isPickleCupWin    Bool        NEW default false ← true = won the full Pickle Cup
+
+
+======================================================================
+  REMOTE (Supabase / PostgreSQL)
+======================================================================
+
+  auth.users  [Supabase built-in — not a custom table]
+  ─────────────────────────────────
+  id          UUID   PK
+  email       text
+
+
+  ── user_profiles  [NEW — merged with user_progression] ────────────
+  user_id            UUID         PK   FK → auth.users(id)
+  display_name       text              default ''
+  avatar_url         text              nullable
+  total_xp           int               NOT NULL default 0  ← merged from user_progression
+  xp_updated_at      timestamptz       nullable            ← replaces user_progression.updated_at
+  current_streak     int               NOT NULL default 0  ← NEW: consecutive daily-play streak
+  longest_streak     int               NOT NULL default 0  ← NEW: all-time best streak
+  last_active_date   date              nullable            ← NEW: last calendar day a session ended
+  gpn_username       text              nullable   ← user's GPN developer API username
+  gpn_profile_url    text              nullable   ← cached GPN profile URL
+  gpn_singles_level  numeric(4,2)      nullable   ← from GPN API: GET /user/calculated-levels
+  gpn_doubles_level  numeric(4,2)      nullable   ← from GPN API: GET /user/calculated-levels
+  gpn_dupr_rating    numeric(4,2)      nullable   ← DUPR rating via GPN API (preferred DUPR partner)
+  gpn_last_synced_at timestamptz       nullable   ← when GPN API data was last fetched
+  created_at         timestamptz       NOT NULL default now()
+  updated_at         timestamptz       NOT NULL default now()
+
+  NOTE: user_progression table is REMOVED. XP data lives directly on
+  user_profiles. Upsert uses Prefer: resolution=merge-duplicates on
+  user_id. Level/rank resolved in Swift via ProgressionService constants.
+
+  NOTE: level_tiers table is REMOVED. Tier thresholds are maintained as
+  constants in ProgressionService.swift (levelThresholds dictionary).
+  4 ranks per MVP spec: Bronze Paddle ≥0 XP | Silver Spin ≥500 | Gold Rally ≥1400 | Diamond Dink ≥5000
+
+
+  ── badges  [NEW] ─────────────────────────────────────────────────
+  id            UUID   PK
+  key           text   UNIQUE     ← machine-readable code (e.g. "first_session")
+  name          text              display name
+  description   text              shown in badge detail view
+  icon_url      text
+  badge_type    text              ← 'achievement' | 'milestone' | 'tournament' | 'level'
+  xp_reward     int    default 0  ← bonus XP granted when badge is earned
+  is_hidden     bool   default false  ← secret/surprise badges
+  created_at    timestamptz
+
+  badge_type values:
+    achievement  — earned by hitting a stat milestone (e.g. 100 total hits)
+    milestone    — session count, days played, streak count
+    tournament   — awarded from GPN tournament results
+    level        — awarded when gaining a tier (Bronze, Gold, etc.)
+
+
+  ── user_badges  [NEW] ────────────────────────────────────────────
+  id          UUID   PK
+  user_id     UUID   FK → user_profiles(user_id)
+  badge_id    UUID   FK → badges(id)
+  awarded_at  timestamptz
+  source      text   nullable   ← human-readable reason why badge was awarded
+  session_id  UUID   nullable   ← optional FK to StoredGameSession that triggered it
+  UNIQUE (user_id, badge_id)   ← each badge can only be awarded once per user
+
+
+  ── saved_locations  [NEW] ────────────────────────────────────────
+  id          UUID   PK
+  user_id     UUID   FK → user_profiles(user_id)
+  label       text              e.g. "Home", "Favorite Court", "Work"
+  place_name  text              human-readable venue/area name
+  address     text   nullable
+  latitude    float8 nullable
+  longitude   float8 nullable
+  is_home     bool   default false   ← marks primary/home location
+  created_at  timestamptz
+
+  Constraint: UNIQUE (user_id) WHERE is_home = true
+              (enforced via partial unique index — only one home per user)
+
+
+  ── game_sessions  [NEW] ──────────────────────────────────────────
+  id                    UUID         PK   same as StoredGameSession.id
+  user_id               UUID         FK → user_profiles(user_id)
+  mode                  text         NOT NULL  ← Dink Sinks | Volley Wallies | The Real Deal | Pickle Cup
+  start_date            timestamptz  NOT NULL
+  end_date              timestamptz  NOT NULL
+  player_one_name       text         NOT NULL
+  player_two_name       text         NOT NULL  ← "Solo" if single-player
+  player_one_score      int          NOT NULL default 0
+  player_two_score      int          NOT NULL default 0
+  average_swing_speed   float8       NOT NULL default 0  (MPH)
+  max_swing_speed       float8       NOT NULL default 0  (MPH)
+  sweet_spot_percentage float8       NOT NULL default 0  (0–100)
+  total_hits            int          NOT NULL default 0
+  winner_name           text         NOT NULL default ''
+  longest_streak        int          NOT NULL default 0
+  total_valid_volleys   int          NOT NULL default 0
+  best_rally_length     int          NOT NULL default 0
+  is_challenge          bool         NOT NULL default false  ← NEW: challenge match (+100 XP if won)
+  is_pickle_cup_win     bool         NOT NULL default false  ← NEW: user won the full Pickle Cup
+  created_at            timestamptz  NOT NULL default now()
+
+
+  ── comments  [EXISTING] ──────────────────────────────────────────
+  id            UUID   PK
+  item_id       UUID   FK to the item being commented on
+  user_id       UUID   FK → auth.users
+  author_name   text
+  body          text
+  created_at    timestamptz
+
+
+  ── comment_likes  [EXISTING] ─────────────────────────────────────
+  id            UUID   PK
+  comment_id    UUID   FK → comments(id)
+  user_id       UUID   FK → auth.users
+
+
+  ── xp_events  [EXISTING] ─────────────────────────────────────────
+  id          UUID   PK   default gen_random_uuid()
+  user_id     UUID   FK → auth.users
+  source      text              XP source label (see values below)
+  xp          int               XP awarded for this event
+  metadata    JSONB             arbitrary key-value pairs
+  created_at  timestamptz       NOT NULL default now()
+
+  XP Source values per MVP spec:
+  ┌───────────────────────────────────┬──────┐
+  │ source                            │  xp  │
+  ├───────────────────────────────────┼──────┤
+  │ Complete session                   │  +50 │
+  │ 10+ clean hits                     │  +20 │
+  │ Personal best                      │  +40 │
+  │ Played with a friend               │  +30 │
+  │ 5-day streak                       │  +75 │
+  │ Challenge win                      │ +100 │
+  └───────────────────────────────────┴──────┘
+
+  NOTE: These values differ from the current ProgressionService.swift
+  implementation and will be aligned in code as part of the MVP build.
+
+
+  ── shot_events  [NEW] ──────────────────────────────────────────────
+  id            UUID         PK   default gen_random_uuid()
+  session_id    UUID         FK → game_sessions(id)
+  user_id       UUID         FK → user_profiles(user_id)
+  timestamp     timestamptz  NOT NULL  ← exact time of paddle hit event
+  speed_mph     float8       NOT NULL  ← estimatedSwingSpeed from BLE event
+  hit_sweet_spot bool        NOT NULL  ← sweetSpotHit from BLE event
+  spin_rpm      float8       NOT NULL default 0
+  created_at    timestamptz  NOT NULL default now()
+
+  NOTE: Corresponds to the ShotEvent model in MVP spec (section 6).
+  Individual shots are stored per session to enable future biomechanics
+  analysis and detailed replays. In-memory ShotEvent struct is the
+  local representation; this table is the remote persistent record.
+
+
+======================================================================
+  RELATIONSHIP SUMMARY
+======================================================================
+
+  auth.users
+    └─ 1:1 ──► user_profiles  (total_xp, streaks; level resolved in Swift)
+                   ├─ 1:M ──► saved_locations
+                   ├─ 1:M ──► user_badges ◄─ M:1 ── badges
+                   └─ 1:M ──► game_sessions
+                                  ├─ 1:M ► shot_events
+                                  └─ (optional) session_id → user_badges
+
+  auth.users (also direct FK for audit/social tables)
+    ├─ 1:M ──► xp_events
+    ├─ 1:M ──► comments ◄── 1:M ── comment_likes
+    └─ 1:M ──► shot_events
+
+  REMOVED TABLES (Option A):
+    user_progression  → merged into user_profiles.total_xp + xp_updated_at
+    level_tiers       → replaced by ProgressionService.levelThresholds in Swift
+
+
+======================================================================
+  GPN INTEGRATION NOTES
+======================================================================
+
+  GPN HAS a real developer REST API at globalpickleball.network/developers.
+  Registration as a developer is required. Key available endpoints:
+
+    GET  /user/calculated-levels   ← singles and doubles playing levels
+    GET  /user/stats               ← match history stats
+    GET  /user/info                ← profile info
+    POST /login                    ← get access token (OAuth-style)
+
+  Recommended integration approach:
+
+  1. User links their GPN account via an in-app OAuth / login flow.
+  2. DinkLink Supabase Edge Function: gpn-oauth handles the token exchange.
+     Resulting GPN access_token stored securely in Supabase Vault
+     (NOT in user_profiles — tokens are server-side only).
+  3. On sync trigger (user taps Refresh or daily background job):
+     Edge Function calls GET /user/calculated-levels and GET /user/stats
+     using the stored token.
+  4. Edge Function writes gpn_singles_level, gpn_doubles_level,
+     gpn_dupr_rating, gpn_last_synced_at back to user_profiles.
+  5. App reads and displays cached values from user_profiles.
+
+  Offline behaviour: Show cached values with "Last updated X days ago".
+  GPN sync button disabled when NetworkMonitor.isConnected = false.
+  Show stale warning if gpn_last_synced_at > 7 days ago.
+
+  DUPR: GPN is a preferred DUPR partner. DUPR ratings appear on GPN
+  profiles and are returned by the calculated-levels endpoint.
+
+
+======================================================================
+  KEY DESIGN DECISIONS
+======================================================================
+
+  1. level_tiers is kept as Swift constants, NOT a DB table (Option A)
+     — Tier thresholds are stable. Keeping them in ProgressionService.swift
+       avoids an unnecessary table, join, and cache strategy.
+     — 4 ranks per MVP: Bronze Paddle | Silver Spin | Gold Rally | Diamond Dink
+
+  2. user_progression is merged into user_profiles (Option A)
+     — Both were 1:1 with the user. Merging removes a table and a join.
+     — total_xp and xp_updated_at are added directly to user_profiles.
+
+  3. XP sources match MVP spec (not current ProgressionService.swift)
+     — Complete session +50, 10+ clean hits +20, Personal best +40,
+       Friend match +30, 5-day streak +75, Challenge win +100.
+     — streak_tracking requires current_streak / last_active_date columns.
+
+  4. shot_events is a remote table (new, from MVP spec)
+     — MVP data model section 6 explicitly includes ShotEvent with
+       gameId and sessionId as a persisted model.
+     — Enables future biomechanics analysis and shot-level replays.
+
+  5. GPN uses its real OAuth API, not HTML scraping
+     — GPN developer portal exposes Get Login Token, Get User's
+       Calculated Levels, Get User's Stats.
+     — Tokens handled server-side in Supabase Vault via Edge Function.
+
+  6. badges catalog is server-side
+     — App fetches the full list to show locked/unlocked state.
+       New badges require no Swift code changes.
+
+  7. saved_locations replaces the single locationName string
+     — Supports Home + multiple favorite courts.
+     — Latitude/longitude enables court-proximity and weather features.
+
+  8. user_profiles is separate from auth.users
+     — Supabase best practice. Keeps auth isolated from app profile data.
+
+
+======================================================================
+  TABLE COUNT SUMMARY
+======================================================================
+
+  Original (before this ERD):   6 tables
+  Current (this document):     13 tables  (+7 new, -2 removed vs 14-table design)
+
+  Local  (SwiftData): PlayerProfile, StoredGameSession, SavedLocation,
+                      SyncQueueItem
+  Remote (Supabase):  auth.users*, user_profiles, game_sessions,
+                      shot_events, saved_locations, badges, user_badges,
+                      comments, comment_likes, xp_events
+
+  * auth.users is Supabase-managed, not a custom table.
