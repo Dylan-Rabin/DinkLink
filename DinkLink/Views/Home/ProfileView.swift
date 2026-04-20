@@ -292,12 +292,20 @@ struct ProfileView: View {
     private var progressionCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Progression")
-                        .dinkHeading(20, color: AppTheme.smoke)
+                HStack(alignment: .center, spacing: 12) {
+                    Image(displayedProgression.rank.badgeAssetName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 64, height: 64)
+                        .accessibilityLabel(displayedProgression.rank.badgeTitle)
 
-                    Text(displayedProgression.rank.badgeTitle)
-                        .dinkBody(12, color: AppTheme.ash)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Progression")
+                            .dinkHeading(20, color: AppTheme.smoke)
+
+                        Text(displayedProgression.rank.badgeTitle)
+                            .dinkBody(12, color: AppTheme.ash)
+                    }
                 }
 
                 Spacer()

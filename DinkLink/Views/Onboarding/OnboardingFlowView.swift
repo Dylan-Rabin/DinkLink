@@ -272,6 +272,20 @@ struct OnboardingFlowView: View {
 
     private var profileStep: some View {
         VStack(alignment: .leading, spacing: 22) {
+            Button {
+                viewModel.goBack()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 14, weight: .bold))
+
+                    Text("Back")
+                        .font(.dinkBody(13))
+                }
+                .foregroundStyle(AppTheme.neon)
+            }
+            .buttonStyle(.plain)
+
             Text("Player Profile")
                 .dinkHeading(22, color: AppTheme.smoke)
 

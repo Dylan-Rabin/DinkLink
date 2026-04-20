@@ -101,6 +101,11 @@ final class OnboardingViewModel {
         currentStep = next
     }
 
+    func goBack() {
+        guard let previous = Step(rawValue: currentStep.rawValue - 1) else { return }
+        currentStep = previous
+    }
+
     func signUpWithEmail() async {
         await authService.signUp(email: authEmail, password: authPassword)
         authEmail = authService.currentUserEmail ?? authEmail

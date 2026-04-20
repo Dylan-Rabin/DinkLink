@@ -19,6 +19,7 @@ final class LiveGameViewModel {
     var roundBanner = "Warm up the hands."
     var cupWins: [Int]
     var currentCupStageIndex = 0
+    var latestXPAwardResult: XPAwardResult?
 
     let mode: GameMode
 
@@ -126,6 +127,10 @@ final class LiveGameViewModel {
     func endSessionEarly() {
         guard !isSessionComplete else { return }
         completeSession(winnerName: winnerNameForCurrentState())
+    }
+
+    func dismissRankUpCelebration() {
+        latestXPAwardResult = nil
     }
 
     private func ingest(shot: ShotEvent) {
@@ -295,6 +300,7 @@ final class LiveGameViewModel {
             previous: previousProgression.progression,
             stats: sessionStats
         )
+        latestXPAwardResult = awardResult
 
         Task {
             try? await progressionPersistenceService.applySessionAward(
