@@ -32,9 +32,9 @@ struct MainTabView: View {
                 sessions: displaySessions,
                 onLogOut: onLogOut
             )
-                .tabItem {
-                    Label("Profile", systemImage: "person.crop.circle")
-                }
+            .tabItem {
+                Label("Profile", systemImage: "person.crop.circle")
+            }
         }
         .tint(AppTheme.neon)
     }
@@ -53,6 +53,7 @@ struct HomeView: View {
 
     @State private var viewModel: HomeViewModel
     @State private var selectedMode: GameMode?
+    @State private var showCurrentSession = false   // I added a quick way to open the live session screen.
 
     private let grid = [GridItem(.flexible()), GridItem(.flexible())]
 
@@ -89,6 +90,7 @@ struct HomeView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Welcome back, \(profile.name)")
                                 .dinkHeading(30, color: AppTheme.neon)
+
                             Text("Synced paddle: \(bluetoothService.connectedDevice?.name ?? profile.syncedPaddleName)")
                                 .dinkBody(13, color: AppTheme.ash)
                         }
@@ -128,6 +130,18 @@ struct HomeView: View {
                     .padding(20)
                 }
             }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showCurrentSession = true
+                    } label: {
+                        Image(systemName: "figure.pickleball")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .tint(AppTheme.neon)
+                    .accessibilityLabel("Open Current Session")
+                }
+            }
             .task(id: profile.locationName) {
                 await viewModel.loadTodayWeather(for: profile.locationName)
             }
@@ -138,6 +152,15 @@ struct HomeView: View {
                     bluetoothService: bluetoothService,
                     persistenceService: SwiftDataPersistenceService(context: modelContext),
                     authService: authService
+                )
+            }
+            .navigationDestination(isPresented: $showCurrentSession) {
+                // I route the top-right icon into the live gameplay screen.
+                CurrentSessionView(
+                    profile: profile,
+                    bluetoothService: bluetoothService,
+                    authService: authService,
+                    persistenceService: SwiftDataPersistenceService(context: modelContext)
                 )
             }
         }
