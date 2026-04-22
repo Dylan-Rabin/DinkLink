@@ -57,43 +57,51 @@ struct OnboardingFlowView: View {
                         .scaleEffect(revealsSplashAnimation ? 1 : 0.96)
                         .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 } else {
-                    VStack(alignment: .leading, spacing: 32) {
-                        Text("Welcome to The DinkLink")
-                            .dinkHeading(34, color: AppTheme.neon)
-                            .fixedSize(horizontal: false, vertical: true)
+                    GeometryReader { proxy in
+                        ScrollView(showsIndicators: false) {
+                            VStack(alignment: .center, spacing: 18) {
+                                Text("Welcome to The DinkLink")
+                                    .dinkHeading(28, color: AppTheme.neon)
+                                    .multilineTextAlignment(.center)
+                                    .fixedSize(horizontal: false, vertical: true)
 
-                        Text("Smart paddle training for sharper hands, cleaner contacts, and match-ready confidence.")
-                            .dinkBody(18, color: AppTheme.smoke.opacity(0.82))
-                            .fixedSize(horizontal: false, vertical: true)
+                                Text("Smart paddle training for sharper hands, cleaner contacts, and match-ready confidence.")
+                                    .dinkBody(14, color: AppTheme.smoke.opacity(0.82))
+                                    .fixedSize(horizontal: false, vertical: true)
 
-                        switch viewModel.currentStep {
-                        case .intro:
-                            introStep
-                        case .playerProfile:
-                            styledStepCard {
-                                profileStep
+                                switch viewModel.currentStep {
+                                case .intro:
+                                    introStep
+                                case .playerProfile:
+                                    styledStepCard {
+                                        profileStep
+                                    }
+                                case .paddleSync:
+                                    styledStepCard {
+                                        paddleSyncStep
+                                    }
+                                case .ready:
+                                    styledStepCard {
+                                        readyStep
+                                    }
+                                }
+
+                                if let onboardingErrorMessage = viewModel.onboardingErrorMessage {
+                                    Text(onboardingErrorMessage)
+                                        .dinkBody(12, color: AppTheme.ash)
+                                        .multilineTextAlignment(.center)
+                                }
                             }
-                        case .paddleSync:
-                            styledStepCard {
-                                paddleSyncStep
-                            }
-                        case .ready:
-                            styledStepCard {
-                                readyStep
-                            }
+                            .frame(maxWidth: 420)
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: proxy.size.height, alignment: .center)
                         }
-
-                        if let onboardingErrorMessage = viewModel.onboardingErrorMessage {
-                            Text(onboardingErrorMessage)
-                                .dinkBody(12, color: AppTheme.ash)
-                        }
-
-                        Spacer()
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
             }
-            .padding(24)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 18)
         }
         .task {
             guard showsSplash else { return }
@@ -123,7 +131,8 @@ struct OnboardingFlowView: View {
     @ViewBuilder
     private func styledStepCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .padding(24)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 24)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 LinearGradient(
@@ -132,9 +141,9 @@ struct OnboardingFlowView: View {
                     endPoint: .bottomTrailing
                 )
             )
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(AppTheme.neon.opacity(0.2), lineWidth: 1)
             )
     }
@@ -213,13 +222,13 @@ struct OnboardingFlowView: View {
     }
 
     private var introStep: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 18) {
                 Text("Train smarter.")
-                    .dinkHeading(24, color: AppTheme.smoke)
+                    .dinkHeading(20, color: AppTheme.smoke)
 
                 Text("Set up your player profile, pair a paddle, and launch into live game modes backed by mocked sensor data.")
-                    .dinkBody(16, color: AppTheme.ash)
+                    .dinkBody(14, color: AppTheme.ash)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Button("Build My Profile") {
@@ -229,7 +238,8 @@ struct OnboardingFlowView: View {
                 .tint(AppTheme.neon)
                 .foregroundStyle(AppTheme.ink)
             }
-            .padding(24)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 24)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 LinearGradient(
@@ -238,14 +248,14 @@ struct OnboardingFlowView: View {
                     endPoint: .bottomTrailing
                 )
             )
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 18) {
                 Text("Returning player?")
-                    .dinkHeading(24, color: AppTheme.smoke)
+                    .dinkHeading(20, color: AppTheme.smoke)
 
                 Text("Jump in with Dylan's sample account data as a left-handed player in San Francisco using a CourtSense One paddle.")
-                    .dinkBody(15, color: AppTheme.ash)
+                    .dinkBody(14, color: AppTheme.ash)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Button("Sign In as Dylan") {
@@ -257,7 +267,8 @@ struct OnboardingFlowView: View {
                 .tint(AppTheme.neon)
                 .disabled(!viewModel.canUseReturningUser)
             }
-            .padding(24)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 24)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 LinearGradient(
@@ -266,12 +277,12 @@ struct OnboardingFlowView: View {
                     endPoint: .bottomTrailing
                 )
             )
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
     }
 
     private var profileStep: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 14) {
             Button {
                 viewModel.goBack()
             } label: {
@@ -287,49 +298,49 @@ struct OnboardingFlowView: View {
             .buttonStyle(.plain)
 
             Text("Player Profile")
-                .dinkHeading(22, color: AppTheme.smoke)
+                .dinkHeading(20, color: AppTheme.smoke)
 
             TextField("Player name", text: $viewModel.playerName)
-                .font(.dinkBody(15))
+                .font(.dinkBody(14))
                 .foregroundStyle(AppTheme.ink)
                 .tint(AppTheme.ink)
                 .textInputAutocapitalization(.words)
-                .padding()
+                .padding(12)
                 .background(AppTheme.smoke)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             TextField("City or ZIP code", text: $viewModel.playerLocation)
-                .font(.dinkBody(15))
+                .font(.dinkBody(14))
                 .foregroundStyle(AppTheme.ink)
                 .tint(AppTheme.ink)
                 .textInputAutocapitalization(.words)
-                .padding()
+                .padding(12)
                 .background(AppTheme.smoke)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             // Text("Email and password are optional. Add them now if you want to post and like comments after onboarding.")
               //  .dinkBody(12, color: AppTheme.ash)
 
             TextField("Email (optional)", text: $viewModel.authEmail)
-                .font(.dinkBody(15))
+                .font(.dinkBody(14))
                 .foregroundStyle(AppTheme.ink)
                 .tint(AppTheme.ink)
                 .keyboardType(.emailAddress)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .padding()
+                .padding(12)
                 .background(AppTheme.smoke)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             SecureField("Password (optional)", text: $viewModel.authPassword)
-                .font(.dinkBody(15))
+                .font(.dinkBody(14))
                 .foregroundStyle(AppTheme.ink)
                 .tint(AppTheme.ink)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .padding()
+                .padding(12)
                 .background(AppTheme.smoke)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             if viewModel.isAuthenticated {
                 Text("Signed in as \(viewModel.authenticatedEmail ?? "Authenticated player").")
@@ -403,10 +414,10 @@ struct OnboardingFlowView: View {
     }
 
     private var paddleSyncStep: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Paddle Sync")
-                    .dinkHeading(22, color: AppTheme.smoke)
+                    .dinkHeading(20, color: AppTheme.smoke)
                 Spacer()
                 Button(viewModel.isScanning ? "Scanning..." : "Scan") {
                     Task {
@@ -420,7 +431,7 @@ struct OnboardingFlowView: View {
 
             if viewModel.availableDevices.isEmpty {
                 Text("Scan for nearby smart paddles to connect a mock training device.")
-                    .dinkBody(16, color: AppTheme.ash)
+                    .dinkBody(14, color: AppTheme.ash)
             } else {
                 ForEach(viewModel.availableDevices) { device in
                     Button {
@@ -437,7 +448,7 @@ struct OnboardingFlowView: View {
                             Image(systemName: viewModel.selectedDeviceID == device.id ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(AppTheme.neon)
                         }
-                        .padding()
+                        .padding(12)
                         .background(
                             LinearGradient(
                                 colors: [AppTheme.graphite, AppTheme.steel],
@@ -445,7 +456,7 @@ struct OnboardingFlowView: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
