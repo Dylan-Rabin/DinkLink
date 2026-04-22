@@ -145,9 +145,17 @@ final class SupabaseAuthService {
         }
 
         guard 200..<300 ~= httpResponse.statusCode else {
-            let message = String(data: data, encoding: .utf8)
+            let message = decodeErrorMessage(from: data)
             throw AuthServiceError.requestFailed(statusCode: httpResponse.statusCode, message: message)
         }
+    }
+
+    private func decodeErrorMessage(from data: Data) -> String? {
+        if let response = try? decoder.decode(SupabaseErrorResponse.self, from: data) {
+            return response.message
+        }
+
+        return String(data: data, encoding: .utf8)
     }
 }
 
@@ -182,6 +190,24 @@ private struct SupabaseAuthResponse: Decodable {
     }
 }
 
+private struct SupabaseErrorResponse: Decodable {
+    let error: String?
+    let errorDescription: String?
+    let msg: String?
+    let responseMessage: String?
+
+    enum CodingKeys: String, CodingKey {
+        case error
+        case errorDescription = "error_description"
+        case msg
+        case responseMessage = "message"
+    }
+
+    var message: String? {
+        errorDescription ?? msg ?? responseMessage ?? error
+    }
+}
+
 enum AuthServiceError: LocalizedError {
     case invalidResponse
     case requestFailed(statusCode: Int, message: String?)
@@ -191,10 +217,36 @@ enum AuthServiceError: LocalizedError {
         case .invalidResponse:
             return "The auth service returned an invalid response."
         case let .requestFailed(statusCode, message):
-            if let message, !message.isEmpty {
-                return "Auth request failed (\(statusCode)): \(message)"
+            if let friendlyMessage = Self.friendlyMessage(statusCode: statusCode, message: message) {
+                return friendlyMessage
             }
-            return "Auth request failed with status \(statusCode)."
+            return "We couldn't complete that auth request. Please try again."
         }
+    }
+
+    private static func friendlyMessage(statusCode: Int, message: String?) -> String? {
+        let normalizedMessage = message?.lowercased() ?? ""
+
+        if normalizedMessage.contains("password") && normalizedMessage.contains("6") {
+            return "Password must be at least 6 characters."
+        }
+
+        if normalizedMessage.contains("invalid login credentials") {
+            return "Email or password is incorrect."
+        }
+
+        if normalizedMessage.contains("already registered") || normalizedMessage.contains("already exists") {
+            return "An account already exists for this email. Use the returning player sign-in instead."
+        }
+
+        if normalizedMessage.contains("email") && normalizedMessage.contains("invalid") {
+            return "Enter a valid email address."
+        }
+
+        if statusCode == 429 {
+            return "Too many attempts. Please wait a moment and try again."
+        }
+
+        return nil
     }
 }

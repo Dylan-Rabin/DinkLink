@@ -254,13 +254,36 @@ struct OnboardingFlowView: View {
                 Text("Returning player?")
                     .dinkHeading(20, color: AppTheme.smoke)
 
-                Text("Jump in with Dylan's sample account data as a left-handed player in San Francisco using a CourtSense One paddle.")
+                Text("Sign in with the email and password you used when you built your profile.")
                     .dinkBody(14, color: AppTheme.ash)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Button("Sign In as Dylan") {
-                    if let profile = viewModel.signInReturningUser() {
-                        onComplete(profile)
+                TextField("Email", text: $viewModel.authEmail)
+                    .font(.dinkBody(14))
+                    .foregroundStyle(AppTheme.ink)
+                    .tint(AppTheme.ink)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(12)
+                    .background(AppTheme.smoke)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                SecureField("Password", text: $viewModel.authPassword)
+                    .font(.dinkBody(14))
+                    .foregroundStyle(AppTheme.ink)
+                    .tint(AppTheme.ink)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(12)
+                    .background(AppTheme.smoke)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                Button(viewModel.isAuthenticating ? "Signing In..." : "Sign In to My Profile") {
+                    Task {
+                        if let profile = await viewModel.signInReturningUser() {
+                            onComplete(profile)
+                        }
                     }
                 }
                 .buttonStyle(.bordered)
@@ -309,7 +332,7 @@ struct OnboardingFlowView: View {
                 .background(AppTheme.smoke)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            TextField("City or ZIP code", text: $viewModel.playerLocation)
+            TextField("City name", text: $viewModel.playerLocation)
                 .font(.dinkBody(14))
                 .foregroundStyle(AppTheme.ink)
                 .tint(AppTheme.ink)
@@ -321,7 +344,7 @@ struct OnboardingFlowView: View {
             // Text("Email and password are optional. Add them now if you want to post and like comments after onboarding.")
               //  .dinkBody(12, color: AppTheme.ash)
 
-            TextField("Email (optional)", text: $viewModel.authEmail)
+            TextField("Email", text: $viewModel.authEmail)
                 .font(.dinkBody(14))
                 .foregroundStyle(AppTheme.ink)
                 .tint(AppTheme.ink)
@@ -332,7 +355,7 @@ struct OnboardingFlowView: View {
                 .background(AppTheme.smoke)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            SecureField("Password (optional)", text: $viewModel.authPassword)
+            SecureField("Password", text: $viewModel.authPassword)
                 .font(.dinkBody(14))
                 .foregroundStyle(AppTheme.ink)
                 .tint(AppTheme.ink)
@@ -345,27 +368,6 @@ struct OnboardingFlowView: View {
             if viewModel.isAuthenticated {
                 Text("Signed in as \(viewModel.authenticatedEmail ?? "Authenticated player").")
                     .dinkBody(12, color: AppTheme.neon)
-            } else if !viewModel.authEmail.isEmpty || !viewModel.authPassword.isEmpty {
-                HStack {
-                    Button(viewModel.isAuthenticating ? "Signing In..." : "Sign In") {
-                        Task {
-                            await viewModel.signInWithEmail()
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.neon)
-                    .foregroundStyle(AppTheme.ink)
-                    .disabled(viewModel.isAuthenticating)
-
-                    Button("Create Account") {
-                        Task {
-                            await viewModel.signUpWithEmail()
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(AppTheme.neon)
-                    .disabled(viewModel.isAuthenticating)
-                }
             }
 
             if let authStatusMessage = viewModel.authStatusMessage {
@@ -402,8 +404,10 @@ struct OnboardingFlowView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
  */
-            Button("Continue to Paddle Sync") {
-                viewModel.advance()
+            Button(viewModel.isAuthenticating ? "Creating Account..." : "Continue to Paddle Sync") {
+                Task {
+                    await viewModel.continueFromProfile()
+                }
             }
             .buttonStyle(.borderedProminent)
             .tint(AppTheme.neon)
