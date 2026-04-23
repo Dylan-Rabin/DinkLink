@@ -2,8 +2,6 @@ import Foundation
 import Observation
 
 @MainActor
-// Live game state is centralized here so the view renders from one observable
-// source of truth while game logic stays outside the SwiftUI layer.
 @Observable
 final class LiveGameViewModel {
     var activePlayerIndex = 0
@@ -11,6 +9,8 @@ final class LiveGameViewModel {
     var elapsedSeconds = 0
     var latestFeedback = "Waiting for live paddle data"
     var latestSwingSpeed: Double = 0
+    var liveSwingSpeeds: [Double] = []
+    var isPaused = false
     var currentRallyHits = 0
     var rallies: [Rally] = []
     var playerMetrics: [PlayerGameMetrics]
@@ -81,11 +81,13 @@ final class LiveGameViewModel {
     }
 
     func start() {
-        // Interactive feature: the view model subscribes to the live shot stream and
-        // updates scoring, feedback, and charts in near real time as shots arrive.
+        liveSwingSpeeds = []
+        isPaused = false
+
         bluetoothService.onShotEvent = { [weak self] shot in
             self?.ingest(shot: shot)
         }
+
         bluetoothService.startStreaming()
         startTimer()
     }
@@ -94,6 +96,23 @@ final class LiveGameViewModel {
         timer?.invalidate()
         timer = nil
         bluetoothService.stopStreaming()
+    }
+
+    func togglePause() {
+        guard !isSessionComplete else { return }
+
+        isPaused.toggle()
+
+        if isPaused {
+            timer?.invalidate()
+            timer = nil
+            bluetoothService.stopStreaming()
+            roundBanner = "Session paused."
+        } else {
+            bluetoothService.startStreaming()
+            startTimer()
+            roundBanner = "\(activePlayerName) is on court."
+        }
     }
 
     func switchActivePlayer() {
@@ -134,11 +153,14 @@ final class LiveGameViewModel {
     }
 
     private func ingest(shot: ShotEvent) {
-        guard !isSessionComplete else { return }
+        guard !isSessionComplete, !isPaused else { return }
 
-        // Each incoming shot fans out into multiple pieces of UI state so the session
-        // feels live rather than waiting for a round to finish before updating.
         latestSwingSpeed = shot.speedMPH
+        liveSwingSpeeds.append(shot.speedMPH)
+        if liveSwingSpeeds.count > 20 {
+            liveSwingSpeeds.removeFirst(liveSwingSpeeds.count - 20)
+        }
+
         latestFeedback = GameEngine.feedback(for: shot)
 
         playerMetrics[activePlayerIndex].totalHits += 1
@@ -164,12 +186,15 @@ final class LiveGameViewModel {
                 playerMetrics[activePlayerIndex].dinkBestStreak,
                 playerMetrics[activePlayerIndex].dinkCurrentStreak
             )
+
         case .volleyWallies:
             if shot.speedMPH >= 15 {
                 playerMetrics[activePlayerIndex].validVolleys += 1
             }
+
         case .theRealDeal:
             currentRallyHits += 1
+
         case .pickleCup:
             break
         }
@@ -187,6 +212,8 @@ final class LiveGameViewModel {
     }
 
     @objc private func handleTimerTick() {
+        guard !isPaused else { return }
+
         elapsedSeconds += 1
 
         if activeMode.isTimed {
@@ -288,6 +315,7 @@ final class LiveGameViewModel {
             userID: userID.uuidString,
             sessions: priorSessions
         )
+
         let sessionStats = SessionStats(
             durationMinutes: max(1, Int(sessionEndDate.timeIntervalSince(sessionStartDate) / 60)),
             totalHits: totalHits,
@@ -296,6 +324,7 @@ final class LiveGameViewModel {
             isNewSwingSpeedPB: maxSwingSpeed > (priorSessions.map(\.maxSwingSpeed).max() ?? 0),
             isNewSweetSpotPB: sweetSpotPercentage > (priorSessions.map(\.sweetSpotPercentage).max() ?? 0)
         )
+
         let awardResult = ProgressionService.applySessionXP(
             previous: previousProgression.progression,
             stats: sessionStats
@@ -343,11 +372,6 @@ final class LiveGameViewModel {
                 return cupChampionName()
             }
 
-            let winnerIndex = GameEngine.winnerIndex(for: activeMode, metrics: playerMetrics)
-            return playerMetrics[winnerIndex].player.name
-        }
-
-        if activeMode == .theRealDeal {
             let winnerIndex = GameEngine.winnerIndex(for: activeMode, metrics: playerMetrics)
             return playerMetrics[winnerIndex].player.name
         }
