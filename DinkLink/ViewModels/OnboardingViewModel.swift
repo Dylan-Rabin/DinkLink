@@ -32,6 +32,8 @@ final class OnboardingViewModel {
     private let persistenceService: PersistenceServiceProtocol
     @ObservationIgnored
     private let authService: SupabaseAuthService
+    @ObservationIgnored
+    private let existingProfile: PlayerProfile?
 
     init(
         bluetoothService: BluetoothServiceProtocol,
@@ -42,6 +44,7 @@ final class OnboardingViewModel {
         self.bluetoothService = bluetoothService
         self.persistenceService = persistenceService
         self.authService = authService
+        self.existingProfile = existingProfile
         playerName = existingProfile?.name ?? ""
         playerLocation = existingProfile?.locationName ?? ""
         dominantArm = existingProfile?.dominantArm ?? .right
@@ -51,11 +54,14 @@ final class OnboardingViewModel {
 
     var canContinueFromProfile: Bool {
         !playerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !playerLocation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            !playerLocation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !authService.isAuthenticating
     }
 
     var canUseReturningUser: Bool {
-        true
+        !authEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !authPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !authService.isAuthenticating
     }
 
     var isAuthenticated: Bool {
@@ -101,6 +107,11 @@ final class OnboardingViewModel {
         currentStep = next
     }
 
+    func goBack() {
+        guard let previous = Step(rawValue: currentStep.rawValue - 1) else { return }
+        currentStep = previous
+    }
+
     func signUpWithEmail() async {
         await authService.signUp(email: authEmail, password: authPassword)
         authEmail = authService.currentUserEmail ?? authEmail
@@ -111,14 +122,44 @@ final class OnboardingViewModel {
         authEmail = authService.currentUserEmail ?? authEmail
     }
 
-    func signInReturningUser() -> PlayerProfile? {
-        playerName = "Dylan"
-        playerLocation = "San Francisco"
-        dominantArm = .left
-        skillLevel = .intermediate
-        selectedDeviceID = availableDevices.first(where: { $0.name == "CourtSense One" })?.id
+    func continueFromProfile() async {
+        onboardingErrorMessage = nil
 
-        return saveProfile(paddleName: "CourtSense One")
+        if hasPartialAuthCredentials {
+            onboardingErrorMessage = "Enter both email and password, or leave both blank."
+            return
+        }
+
+        if hasAuthCredentials, !authService.isAuthenticated {
+            await signUpWithEmail()
+
+            if authService.authErrorMessage != nil {
+                return
+            }
+        }
+
+        advance()
+    }
+
+    func signInReturningUser() async -> PlayerProfile? {
+        await signInWithEmail()
+
+        guard authService.isAuthenticated else {
+            return nil
+        }
+
+        guard let existingProfile else {
+            onboardingErrorMessage = "Signed in. Build your profile to finish setup on this device."
+            currentStep = .playerProfile
+            return nil
+        }
+
+        playerName = existingProfile.name
+        playerLocation = existingProfile.locationName
+        dominantArm = existingProfile.dominantArm
+        skillLevel = existingProfile.skillLevel
+
+        return saveProfile(paddleName: existingProfile.syncedPaddleName)
     }
 
     func completeOnboarding() -> PlayerProfile? {
@@ -142,5 +183,16 @@ final class OnboardingViewModel {
             onboardingErrorMessage = "Could not finish onboarding. Reset saved app data and try again."
             return nil
         }
+    }
+
+    private var hasAuthCredentials: Bool {
+        !authEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !authPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var hasPartialAuthCredentials: Bool {
+        let hasEmail = !authEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasPassword = !authPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return hasEmail != hasPassword
     }
 }

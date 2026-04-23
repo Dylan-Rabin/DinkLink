@@ -38,9 +38,18 @@ struct LiveGameView: View {
                 }
                 .padding(20)
             }
+
+            if let rankUpAwardResult {
+                RankUpCelebrationView(awardResult: rankUpAwardResult) {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        viewModel.dismissRankUpCelebration()
+                    }
+                }
+            }
         }
         .navigationTitle(viewModel.mode.rawValue)
         .navigationBarTitleDisplayMode(.inline)
+        .dinkBackButton()
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task {
             viewModel.start()
@@ -180,6 +189,14 @@ struct LiveGameView: View {
             )
         )
         .clipShape(RoundedRectangle(cornerRadius: 24))
+    }
+
+    private var rankUpAwardResult: XPAwardResult? {
+        guard let awardResult = viewModel.latestXPAwardResult, awardResult.rankedUp else {
+            return nil
+        }
+
+        return awardResult
     }
 
     private var sessionControls: some View {

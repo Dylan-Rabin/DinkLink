@@ -10,7 +10,12 @@ struct MainTabView: View {
 
     var body: some View {
         TabView {
-            HomeView(profile: profile, bluetoothService: bluetoothService, authService: authService)
+            HomeView(
+                profile: profile,
+                sessions: displaySessions,
+                bluetoothService: bluetoothService,
+                authService: authService
+            )
                 .tabItem {
                     Label("Home", systemImage: "house.fill")
                 }
@@ -48,6 +53,7 @@ struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
 
     let profile: PlayerProfile
+    let sessions: [StoredGameSession]
     let bluetoothService: MockBluetoothService
     let authService: SupabaseAuthService
 
@@ -59,11 +65,13 @@ struct HomeView: View {
 
     init(
         profile: PlayerProfile,
+        sessions: [StoredGameSession],
         bluetoothService: MockBluetoothService,
         authService: SupabaseAuthService,
         weatherService: WeatherServiceProtocol = OpenMeteoWeatherService()
     ) {
         self.profile = profile
+        self.sessions = sessions
         self.bluetoothService = bluetoothService
         self.authService = authService
         _viewModel = State(initialValue: HomeViewModel(weatherService: weatherService))
@@ -90,7 +98,8 @@ struct HomeView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Welcome back, \(profile.name)")
                                 .dinkHeading(30, color: AppTheme.neon)
-
+                            Text("\(homeProgression.rank.badgeTitle) • Level \(homeProgression.level)")
+                                .dinkBody(12, color: AppTheme.smoke)
                             Text("Synced paddle: \(bluetoothService.connectedDevice?.name ?? profile.syncedPaddleName)")
                                 .dinkBody(13, color: AppTheme.ash)
                         }
@@ -219,6 +228,10 @@ struct HomeView: View {
                     .dinkBody(12, color: AppTheme.ash)
             }
         }
+    }
+
+    private var homeProgression: UserProgression {
+        ProgressionService.buildProgression(for: profile, sessions: sessions).progression
     }
 
     private func color(for mode: GameMode) -> Color {
