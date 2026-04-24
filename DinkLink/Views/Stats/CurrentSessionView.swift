@@ -62,7 +62,7 @@ struct CurrentSessionView: View {
             Text("Start Gameplay")
                 .dinkHeading(22, color: AppTheme.smoke)
 
-            Text("Tap start when you are ready to track your match live.")
+            Text("Tap start when you are ready to begin tracking your match.")
                 .dinkBody(13, color: AppTheme.ash)
 
             Button("Start Session") {
@@ -82,7 +82,7 @@ struct CurrentSessionView: View {
                     .dinkBody(12, color: AppTheme.smoke)
                 Text("• Sweet spot rate")
                     .dinkBody(12, color: AppTheme.smoke)
-                Text("• Hits and pace")
+                Text("• Hits")
                     .dinkBody(12, color: AppTheme.smoke)
             }
         }
@@ -142,32 +142,16 @@ private struct LiveWorkoutDashboard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            timerCard
-            liveStatsCard
-            paceCard
-            playerCard
-
-            HStack(spacing: 12) {
-                Button(viewModel.isPaused ? "Resume" : "Pause") {
-                    viewModel.togglePause()
-                }
-                .buttonStyle(.bordered)
-                .tint(AppTheme.neon)
-                .foregroundStyle(AppTheme.ink)
-                .disabled(viewModel.isSessionComplete)
-
-                Button("End Session") {
-                    viewModel.endSessionEarly()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.neon)
-                .foregroundStyle(AppTheme.ink)
-                .disabled(viewModel.isSessionComplete)
-            }
-
             if viewModel.isSessionComplete {
                 completionCard
+            }
 
+            controlButtons
+            timerCard
+            liveStatsCard
+            currentPlayerCard
+
+            if viewModel.isSessionComplete {
                 Button("Start New Session") {
                     onStartOver()
                 }
@@ -183,14 +167,30 @@ private struct LiveWorkoutDashboard: View {
         }
     }
 
+    private var controlButtons: some View {
+        HStack(spacing: 12) {
+            Button(viewModel.isPaused ? "Resume" : "Pause") {
+                viewModel.togglePause()
+            }
+            .buttonStyle(.bordered)
+            .tint(AppTheme.neon)
+            .foregroundStyle(AppTheme.ink)
+            .disabled(viewModel.isSessionComplete)
+
+            Button("End Session") {
+                viewModel.endSessionEarly()
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(AppTheme.neon)
+            .foregroundStyle(AppTheme.ink)
+            .disabled(viewModel.isSessionComplete)
+        }
+    }
+
     private var timerCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Session Live")
-                    .dinkHeading(20, color: AppTheme.smoke)
-
-                Spacer()
-            }
+            Text("Session Live")
+                .dinkHeading(20, color: AppTheme.smoke)
 
             Text(formattedTime(viewModel.elapsedSeconds))
                 .font(.system(size: 54, weight: .bold, design: .rounded))
@@ -243,6 +243,11 @@ private struct LiveWorkoutDashboard: View {
                 statTile(title: "Sweet Spot", value: "\(formatted(stats.sweetSpot, decimals: 0))%")
                 statTile(title: "Hits", value: "\(stats.totalHits)")
             }
+
+            liveSummaryRow(title: "Average Swing Speed", value: "\(formatted(stats.average)) mph")
+            liveSummaryRow(title: "Max Swing Speed", value: "\(formatted(stats.max)) mph")
+            liveSummaryRow(title: "Sweet Spot", value: "\(formatted(stats.sweetSpot, decimals: 0))%")
+            liveSummaryRow(title: "Total Hits", value: "\(stats.totalHits)")
         }
         .padding(18)
         .background(
@@ -259,42 +264,7 @@ private struct LiveWorkoutDashboard: View {
         )
     }
 
-    private var paceCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Pace")
-                    .dinkHeading(18, color: AppTheme.smoke)
-
-                Spacer()
-
-                Text("\(formatted(viewModel.latestSwingSpeed)) mph")
-                    .dinkBody(12, color: AppTheme.neon)
-                    .animation(.easeInOut(duration: 0.2), value: viewModel.latestSwingSpeed)
-            }
-
-            ProgressView(value: min(viewModel.latestSwingSpeed / 50.0, 1.0))
-                .tint(AppTheme.neon)
-                .animation(.easeInOut(duration: 0.2), value: viewModel.latestSwingSpeed)
-
-            Text("A simple workout-style pulse for the current session.")
-                .dinkBody(12, color: AppTheme.ash)
-        }
-        .padding(18)
-        .background(
-            LinearGradient(
-                colors: [AppTheme.steel, AppTheme.graphite],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
-        )
-    }
-
-    private var playerCard: some View {
+    private var currentPlayerCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Current Player")
                 .dinkHeading(18, color: AppTheme.smoke)
@@ -324,9 +294,6 @@ private struct LiveWorkoutDashboard: View {
             Text("Session Complete")
                 .dinkHeading(20, color: AppTheme.ink)
 
-            Text("\(viewModel.sessionWinner) wins.")
-                .dinkBody(14, color: AppTheme.ink)
-
             Text("Hits: \(stats.totalHits)")
                 .dinkBody(13, color: AppTheme.ink)
 
@@ -354,6 +321,18 @@ private struct LiveWorkoutDashboard: View {
         .padding(12)
         .background(AppTheme.graphite.opacity(0.9))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func liveSummaryRow(title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+                .dinkBody(13, color: AppTheme.smoke)
+
+            Spacer()
+
+            Text(value)
+                .dinkBody(14, color: AppTheme.neon)
+        }
     }
 
     private func formatted(_ value: Double, decimals: Int = 1) -> String {

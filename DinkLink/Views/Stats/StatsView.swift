@@ -43,50 +43,6 @@ struct StatsView: View {
                             comparisonCard
 
                             chartCard(
-                                title: "Swing Speed Trend",
-                                subtitle: "Average swing speed across your most recent sessions."
-                            ) {
-                                Chart(recentSessionPoints) { point in
-                                    AreaMark(
-                                        x: .value("Session", point.label),
-                                        y: .value("Average Swing Speed", point.averageSwingSpeed)
-                                    )
-                                    .interpolationMethod(.catmullRom)
-                                    .foregroundStyle(
-                                        LinearGradient(
-                                            colors: [AppTheme.neon.opacity(0.35), .clear],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-
-                                    LineMark(
-                                        x: .value("Session", point.label),
-                                        y: .value("Average Swing Speed", point.averageSwingSpeed)
-                                    )
-                                    .interpolationMethod(.catmullRom)
-                                    .foregroundStyle(AppTheme.neon)
-                                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
-
-                                    PointMark(
-                                        x: .value("Session", point.label),
-                                        y: .value("Average Swing Speed", point.averageSwingSpeed)
-                                    )
-                                    .foregroundStyle(AppTheme.smoke)
-                                }
-                                .chartYAxis {
-                                    AxisMarks(position: .leading)
-                                }
-                                .chartXAxis {
-                                    AxisMarks { _ in
-                                        AxisValueLabel()
-                                            .foregroundStyle(AppTheme.ash)
-                                    }
-                                }
-                                .frame(height: 220)
-                            }
-
-                            chartCard(
                                 title: "Sweet Spot Trend",
                                 subtitle: "Contact quality across recent sessions."
                             ) {
@@ -343,18 +299,6 @@ struct StatsView: View {
         Array(sessions.sorted { $0.endDate < $1.endDate }.suffix(4)).reversed()
     }
 
-    private var recentSessionPoints: [SessionTrendPoint] {
-        Array(sessions.sorted { $0.endDate < $1.endDate }.suffix(6))
-            .enumerated()
-            .map { index, session in
-                SessionTrendPoint(
-                    id: session.id,
-                    label: "S\(index + 1)",
-                    averageSwingSpeed: session.averageSwingSpeed
-                )
-            }
-    }
-
     private var sweetSpotPoints: [SweetSpotTrendPoint] {
         Array(sessions.sorted { $0.endDate < $1.endDate }.suffix(6))
             .enumerated()
@@ -440,12 +384,6 @@ struct StatsView: View {
     private func formatted(_ value: Double, decimals: Int = 1) -> String {
         String(format: "%.\(decimals)f", value)
     }
-}
-
-private struct SessionTrendPoint: Identifiable {
-    let id: UUID
-    let label: String
-    let averageSwingSpeed: Double
 }
 
 private struct SweetSpotTrendPoint: Identifiable {
