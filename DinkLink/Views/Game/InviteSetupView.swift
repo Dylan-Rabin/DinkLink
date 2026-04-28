@@ -58,7 +58,6 @@ struct InviteSetupView: View {
         .padding(24)
         .background(AppTheme.ink.ignoresSafeArea())
         .navigationTitle("Session Setup")
-        .navigationBarTitleDisplayMode(.inline)
         .dinkBackButton()
         .toolbarColorScheme(.dark, for: .navigationBar)
         .navigationDestination(isPresented: $startSession) {

@@ -11,7 +11,12 @@ struct MainTabView: View {
 
     var body: some View {
         TabView {
-            HomeView(profile: profile, bluetoothService: bluetoothService, authService: authService, onSessionSaved: onSessionSaved)
+            HomeView(
+                profile: profile,
+                sessions: displaySessions,
+                bluetoothService: bluetoothService,
+                authService: authService
+            )
                 .tabItem {
                     Label("Home", systemImage: "house.fill")
                 }
@@ -33,9 +38,9 @@ struct MainTabView: View {
                 sessions: sessions,
                 onLogOut: onLogOut
             )
-                .tabItem {
-                    Label("Profile", systemImage: "person.crop.circle")
-                }
+            .tabItem {
+                Label("Profile", systemImage: "person.crop.circle")
+            }
         }
         .tint(AppTheme.neon)
     }
@@ -46,24 +51,27 @@ struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
 
     let profile: PlayerProfile
+    let sessions: [StoredGameSession]
     let bluetoothService: MockBluetoothService
     let authService: SupabaseAuthService
     var onSessionSaved: (() -> Void)? = nil
 
     @State private var viewModel: HomeViewModel
     @State private var selectedMode: GameMode?
-    @State private var showCurrentSession = false
+    @State private var showCurrentSession = false   // I added a quick way to open the live session screen.
 
     private let grid = [GridItem(.flexible()), GridItem(.flexible())]
 
     init(
         profile: PlayerProfile,
+        sessions: [StoredGameSession],
         bluetoothService: MockBluetoothService,
         authService: SupabaseAuthService,
         onSessionSaved: (() -> Void)? = nil,
         weatherService: WeatherServiceProtocol = OpenMeteoWeatherService()
     ) {
         self.profile = profile
+        self.sessions = sessions
         self.bluetoothService = bluetoothService
         self.authService = authService
         self.onSessionSaved = onSessionSaved
@@ -91,6 +99,8 @@ struct HomeView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Welcome back, \(profile.name)")
                                 .dinkHeading(30, color: AppTheme.neon)
+                            Text("\(homeProgression.rank.badgeTitle) • Level \(homeProgression.level)")
+                                .dinkBody(12, color: AppTheme.smoke)
                             Text("Synced paddle: \(bluetoothService.connectedDevice?.name ?? profile.syncedPaddleName)")
                                 .dinkBody(13, color: AppTheme.ash)
                         }
@@ -130,6 +140,18 @@ struct HomeView: View {
                     .padding(20)
                 }
             }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showCurrentSession = true
+                    } label: {
+                        Image(systemName: "figure.pickleball")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .tint(AppTheme.neon)
+                    .accessibilityLabel("Open Current Session")
+                }
+            }
             .task(id: profile.locationName) {
                 await viewModel.loadTodayWeather(for: profile.locationName)
             }
@@ -163,6 +185,15 @@ struct HomeView: View {
                     persistenceService: SwiftDataPersistenceService(context: modelContext),
                     authService: authService,
                     onSessionSaved: onSessionSaved
+                )
+            }
+            .navigationDestination(isPresented: $showCurrentSession) {
+                // I route the top-right icon into the live gameplay screen.
+                CurrentSessionView(
+                    profile: profile,
+                    bluetoothService: bluetoothService,
+                    authService: authService,
+                    persistenceService: SwiftDataPersistenceService(context: modelContext)
                 )
             }
         }
@@ -221,6 +252,10 @@ struct HomeView: View {
                     .dinkBody(12, color: AppTheme.ash)
             }
         }
+    }
+
+    private var homeProgression: UserProgression {
+        ProgressionService.buildProgression(for: profile, sessions: sessions).progression
     }
 
     private func color(for mode: GameMode) -> Color {

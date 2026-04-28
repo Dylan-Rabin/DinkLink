@@ -199,31 +199,17 @@ final class SupabaseAuthService {
         }
 
         guard 200..<300 ~= httpResponse.statusCode else {
-            let friendly = friendlyError(from: data) ?? String(data: data, encoding: .utf8)
-            throw AuthServiceError.requestFailed(statusCode: httpResponse.statusCode, message: friendly)
+            let message = decodeErrorMessage(from: data)
+            throw AuthServiceError.requestFailed(statusCode: httpResponse.statusCode, message: message)
         }
     }
 
-    private func friendlyError(from data: Data) -> String? {
-        struct SupabaseErrorBody: Decodable {
-            let error_code: String?
-            let msg: String?
+    private func decodeErrorMessage(from data: Data) -> String? {
+        if let response = try? decoder.decode(SupabaseErrorResponse.self, from: data) {
+            return response.message
         }
-        guard let body = try? JSONDecoder().decode(SupabaseErrorBody.self, from: data) else { return nil }
-        switch body.error_code {
-        case "email_not_confirmed":
-            return "Your email isn't confirmed yet. Check your inbox and use Log In after confirming."
-        case "invalid_credentials":
-            return "Incorrect email or password."
-        case "over_email_send_rate_limit":
-            return "Confirmation email couldn't be sent right now. Your account may have been created — check your inbox (including spam), or try again in a few minutes."
-        case "email_address_not_authorized":
-            return "This email address isn't authorized for sign-up."
-        case "user_already_exists":
-            return "An account with this email already exists. Use Log In instead."
-        default:
-            return body.msg
-        }
+
+        return String(data: data, encoding: .utf8)
     }
 }
 
@@ -258,6 +244,24 @@ private struct SupabaseAuthResponse: Decodable {
     }
 }
 
+private struct SupabaseErrorResponse: Decodable {
+    let error: String?
+    let errorDescription: String?
+    let msg: String?
+    let responseMessage: String?
+
+    enum CodingKeys: String, CodingKey {
+        case error
+        case errorDescription = "error_description"
+        case msg
+        case responseMessage = "message"
+    }
+
+    var message: String? {
+        errorDescription ?? msg ?? responseMessage ?? error
+    }
+}
+
 enum AuthServiceError: LocalizedError {
     case invalidResponse
     case requestFailed(statusCode: Int, message: String?)
@@ -266,11 +270,37 @@ enum AuthServiceError: LocalizedError {
         switch self {
         case .invalidResponse:
             return "The auth service returned an invalid response."
-        case let .requestFailed(_, message):
-            if let message, !message.isEmpty {
-                return message
+        case let .requestFailed(statusCode, message):
+            if let friendlyMessage = Self.friendlyMessage(statusCode: statusCode, message: message) {
+                return friendlyMessage
             }
-            return "Something went wrong. Please try again."
+            return "We couldn't complete that auth request. Please try again."
         }
+    }
+
+    private static func friendlyMessage(statusCode: Int, message: String?) -> String? {
+        let normalizedMessage = message?.lowercased() ?? ""
+
+        if normalizedMessage.contains("password") && normalizedMessage.contains("6") {
+            return "Password must be at least 6 characters."
+        }
+
+        if normalizedMessage.contains("invalid login credentials") {
+            return "Email or password is incorrect."
+        }
+
+        if normalizedMessage.contains("already registered") || normalizedMessage.contains("already exists") {
+            return "An account already exists for this email. Use the returning player sign-in instead."
+        }
+
+        if normalizedMessage.contains("email") && normalizedMessage.contains("invalid") {
+            return "Enter a valid email address."
+        }
+
+        if statusCode == 429 {
+            return "Too many attempts. Please wait a moment and try again."
+        }
+
+        return nil
     }
 }

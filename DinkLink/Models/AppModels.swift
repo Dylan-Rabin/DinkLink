@@ -260,10 +260,14 @@ enum ProgressionRank: String, Codable, CaseIterable {
 
     var badgeAssetName: String {
         switch self {
-        case .bronze:  return "bronze_paddle_badge"
-        case .silver:  return "silver_spin_badge"
-        case .gold:    return "gold_rally_badge"
-        case .diamond: return "diamond_dink_badge"
+        case .bronze:
+            return "bronze_paddle_badge"
+        case .silver:
+            return "silver_spin_badge"
+        case .gold:
+            return "gold_rally_badge"
+        case .diamond:
+            return "diamond_dink_badge"
         }
     }
 }

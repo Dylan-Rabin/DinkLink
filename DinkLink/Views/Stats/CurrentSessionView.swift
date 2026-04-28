@@ -5,7 +5,6 @@ struct CurrentSessionView: View {
   let bluetoothService: MockBluetoothService
   let authService: SupabaseAuthService
   let persistenceService: PersistenceServiceProtocol
-  var onSessionSaved: (() -> Void)? = nil
 
   @State private var liveViewModel: LiveGameViewModel?
 
@@ -44,7 +43,6 @@ struct CurrentSessionView: View {
     }
     .navigationTitle("Current Session")
     .navigationBarTitleDisplayMode(.inline)
-    .dinkBackButton()
     .toolbarColorScheme(.dark, for: .navigationBar)
   }
 
@@ -111,9 +109,7 @@ struct CurrentSessionView: View {
       bluetoothService: bluetoothService,
       persistenceService: persistenceService,
       authService: authService,
-      progressionPersistenceService: SupabaseProgressionPersistenceService(),
-      ownerProfileID: profile.id,
-      onSessionSaved: onSessionSaved
+      progressionPersistenceService: SupabaseProgressionPersistenceService()
     )
   }
 }
@@ -172,6 +168,14 @@ private struct LiveWorkoutDashboard: View {
 
   private var controlButtons: some View {
     HStack(spacing: 12) {
+      Button(viewModel.isPaused ? "Resume" : "Pause") {
+        viewModel.togglePause()
+      }
+      .buttonStyle(.bordered)
+      .tint(AppTheme.neon)
+      .foregroundStyle(AppTheme.ink)
+      .disabled(viewModel.isSessionComplete)
+
       Button("End Session") {
         viewModel.endSessionEarly()
       }
@@ -338,7 +342,7 @@ private struct LiveWorkoutDashboard: View {
 }
 
 private struct PreviewPersistenceService: PersistenceServiceProtocol {
-  func seedDylanSessions(profileID: UUID) {}
+  func seedSampleSessionsIfNeeded() {}
 
   func fetchSavedSessions() -> [StoredGameSession] { [] }
 
@@ -347,8 +351,7 @@ private struct PreviewPersistenceService: PersistenceServiceProtocol {
     locationName: String,
     dominantArm: DominantArm,
     skillLevel: SkillLevel,
-    paddleName: String,
-    supabaseUserID: UUID?
+    paddleName: String
   ) throws -> PlayerProfile {
     PlayerProfile(
       name: name,

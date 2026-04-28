@@ -354,9 +354,9 @@ struct OnboardingFlowView: View {
                 .background(AppTheme.smoke)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            // New users register a Supabase account here so their profile
-            // syncs across devices and they can sign in later from the
-            // "Returning player?" card.
+            // Text("Email and password are optional. Add them now if you want to post and like comments after onboarding.")
+              //  .dinkBody(12, color: AppTheme.ash)
+
             TextField("Email", text: $viewModel.authEmail)
                 .font(.dinkBody(14))
                 .foregroundStyle(AppTheme.ink)
@@ -368,7 +368,7 @@ struct OnboardingFlowView: View {
                 .background(AppTheme.smoke)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            SecureField("Password (min 6 characters)", text: $viewModel.authPassword)
+            SecureField("Password", text: $viewModel.authPassword)
                 .font(.dinkBody(14))
                 .foregroundStyle(AppTheme.ink)
                 .tint(AppTheme.ink)
@@ -377,6 +377,21 @@ struct OnboardingFlowView: View {
                 .padding(12)
                 .background(AppTheme.smoke)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            if viewModel.isAuthenticated {
+                Text("Signed in as \(viewModel.authenticatedEmail ?? "Authenticated player").")
+                    .dinkBody(12, color: AppTheme.neon)
+            }
+
+            if let authStatusMessage = viewModel.authStatusMessage {
+                Text(authStatusMessage)
+                    .dinkBody(12, color: AppTheme.neon)
+            }
+
+            if let authErrorMessage = viewModel.authErrorMessage {
+                Text(authErrorMessage)
+                    .dinkBody(12, color: AppTheme.ash)
+            }
 
 /*            Picker("Dominant Arm", selection: $viewModel.dominantArm) {
                 ForEach(DominantArm.allCases) { arm in
