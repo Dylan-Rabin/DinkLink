@@ -41,6 +41,35 @@ extension View {
             )
         )
     }
+
+    func dinkBackButton() -> some View {
+        modifier(DinkBackButtonModifier())
+    }
+}
+
+private struct DinkBackButtonModifier: ViewModifier {
+    @Environment(\.dismiss) private var dismiss
+
+    func body(content: Content) -> some View {
+        content
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 14, weight: .bold))
+                           // Text("Back")
+                            //    .font(.dinkBody(13))
+                        }
+                        .foregroundStyle(AppTheme.neon)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+    }
 }
 
 extension Color {

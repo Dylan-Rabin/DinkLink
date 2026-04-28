@@ -52,6 +52,7 @@ struct HomeView: View {
 
     @State private var viewModel: HomeViewModel
     @State private var selectedMode: GameMode?
+    @State private var showCurrentSession = false
 
     private let grid = [GridItem(.flexible()), GridItem(.flexible())]
 
@@ -131,6 +132,27 @@ struct HomeView: View {
             }
             .task(id: profile.locationName) {
                 await viewModel.loadTodayWeather(for: profile.locationName)
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showCurrentSession = true
+                    } label: {
+                        Image(systemName: "figure.pickleball")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .tint(AppTheme.neon)
+                    .accessibilityLabel("Open Current Session")
+                }
+            }
+            .navigationDestination(isPresented: $showCurrentSession) {
+                CurrentSessionView(
+                    profile: profile,
+                    bluetoothService: bluetoothService,
+                    authService: authService,
+                    persistenceService: SwiftDataPersistenceService(context: modelContext),
+                    onSessionSaved: onSessionSaved
+                )
             }
             .navigationDestination(item: $selectedMode) { mode in
                 InviteSetupView(

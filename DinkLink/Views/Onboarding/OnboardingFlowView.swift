@@ -10,7 +10,6 @@ struct OnboardingFlowView: View {
     @State private var ballLifted = false
     @State private var paddleTilted = false
     @State private var glowExpanded = false
-    @State private var showsLoginForm = false
 
     var body: some View {
         ZStack {
@@ -58,43 +57,51 @@ struct OnboardingFlowView: View {
                         .scaleEffect(revealsSplashAnimation ? 1 : 0.96)
                         .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 } else {
-                    VStack(alignment: .leading, spacing: 32) {
-                        Text("Welcome to The DinkLink")
-                            .dinkHeading(34, color: AppTheme.neon)
-                            .fixedSize(horizontal: false, vertical: true)
+                    GeometryReader { proxy in
+                        ScrollView(showsIndicators: false) {
+                            VStack(alignment: .center, spacing: 18) {
+                                Text("Welcome to The DinkLink")
+                                    .dinkHeading(28, color: AppTheme.neon)
+                                    .multilineTextAlignment(.center)
+                                    .fixedSize(horizontal: false, vertical: true)
 
-                        Text("Smart paddle training for sharper hands, cleaner contacts, and match-ready confidence.")
-                            .dinkBody(18, color: AppTheme.smoke.opacity(0.82))
-                            .fixedSize(horizontal: false, vertical: true)
+                                Text("Smart paddle training for sharper hands, cleaner contacts, and match-ready confidence.")
+                                    .dinkBody(14, color: AppTheme.smoke.opacity(0.82))
+                                    .fixedSize(horizontal: false, vertical: true)
 
-                        switch viewModel.currentStep {
-                        case .intro:
-                            introStep
-                        case .playerProfile:
-                            styledStepCard {
-                                profileStep
+                                switch viewModel.currentStep {
+                                case .intro:
+                                    introStep
+                                case .playerProfile:
+                                    styledStepCard {
+                                        profileStep
+                                    }
+                                case .paddleSync:
+                                    styledStepCard {
+                                        paddleSyncStep
+                                    }
+                                case .ready:
+                                    styledStepCard {
+                                        readyStep
+                                    }
+                                }
+
+                                if let onboardingErrorMessage = viewModel.onboardingErrorMessage {
+                                    Text(onboardingErrorMessage)
+                                        .dinkBody(12, color: AppTheme.ash)
+                                        .multilineTextAlignment(.center)
+                                }
                             }
-                        case .paddleSync:
-                            styledStepCard {
-                                paddleSyncStep
-                            }
-                        case .ready:
-                            styledStepCard {
-                                readyStep
-                            }
+                            .frame(maxWidth: 420)
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: proxy.size.height, alignment: .center)
                         }
-
-                        if let onboardingErrorMessage = viewModel.onboardingErrorMessage {
-                            Text(onboardingErrorMessage)
-                                .dinkBody(12, color: AppTheme.ash)
-                        }
-
-                        Spacer()
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
             }
-            .padding(24)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 18)
         }
         .task {
             guard showsSplash else { return }
@@ -124,7 +131,8 @@ struct OnboardingFlowView: View {
     @ViewBuilder
     private func styledStepCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .padding(24)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 24)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 LinearGradient(
@@ -133,9 +141,9 @@ struct OnboardingFlowView: View {
                     endPoint: .bottomTrailing
                 )
             )
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(AppTheme.neon.opacity(0.2), lineWidth: 1)
             )
     }
@@ -214,13 +222,13 @@ struct OnboardingFlowView: View {
     }
 
     private var introStep: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 18) {
                 Text("Train smarter.")
-                    .dinkHeading(24, color: AppTheme.smoke)
+                    .dinkHeading(20, color: AppTheme.smoke)
 
                 Text("Set up your player profile, pair a paddle, and launch into live game modes backed by mocked sensor data.")
-                    .dinkBody(16, color: AppTheme.ash)
+                    .dinkBody(14, color: AppTheme.ash)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Button("Build My Profile") {
@@ -229,88 +237,9 @@ struct OnboardingFlowView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(AppTheme.neon)
                 .foregroundStyle(AppTheme.ink)
-                .frame(maxWidth: .infinity)
-
-                HStack(spacing: 8) {
-                    Rectangle()
-                        .fill(AppTheme.steel)
-                        .frame(height: 1)
-                    Text("or")
-                        .dinkBody(13, color: AppTheme.ash)
-                        .fixedSize()
-                    Rectangle()
-                        .fill(AppTheme.steel)
-                        .frame(height: 1)
-                }
-
-                if showsLoginForm {
-                    VStack(alignment: .leading, spacing: 12) {
-                        TextField("Email", text: $viewModel.authEmail)
-                            .font(.dinkBody(15))
-                            .foregroundStyle(AppTheme.ink)
-                            .tint(AppTheme.ink)
-                            .textInputAutocapitalization(.never)
-                            .keyboardType(.emailAddress)
-                            .autocorrectionDisabled()
-                            .padding()
-                            .background(AppTheme.smoke)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                        SecureField("Password", text: $viewModel.authPassword)
-                            .font(.dinkBody(15))
-                            .foregroundStyle(AppTheme.ink)
-                            .tint(AppTheme.ink)
-                            .padding()
-                            .background(AppTheme.smoke)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                        if let error = viewModel.authErrorMessage, !error.isEmpty {
-                            Text(error)
-                                .dinkBody(13, color: .red)
-                        }
-
-                        HStack(spacing: 12) {
-                            Button("Sign In") {
-                                Task {
-                                    await viewModel.signInWithEmail()
-                                    guard viewModel.isAuthenticated else { return }
-                                    // Always go to paddle sync after login so the user
-                                    // can confirm or update their paired paddle.
-                                    viewModel.currentStep = .paddleSync
-                                    withAnimation(.spring(response: 0.7, dampingFraction: 0.9)) {
-                                        showsSplash = false
-                                    }
-                                }
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(AppTheme.neon)
-                            .foregroundStyle(AppTheme.ink)
-                            .disabled(viewModel.isAuthenticating || viewModel.authEmail.isEmpty || viewModel.authPassword.isEmpty)
-
-                            Button("Cancel") {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    showsLoginForm = false
-                                }
-                                viewModel.authEmail = ""
-                                viewModel.authPassword = ""
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(AppTheme.ash)
-                        }
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                } else {
-                    Button("Log In") {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            showsLoginForm = true
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(AppTheme.neon)
-                    .frame(maxWidth: .infinity)
-                }
             }
-            .padding(24)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 24)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 LinearGradient(
@@ -319,27 +248,50 @@ struct OnboardingFlowView: View {
                     endPoint: .bottomTrailing
                 )
             )
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .animation(.easeInOut(duration: 0.2), value: showsLoginForm)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 18) {
                 Text("Returning player?")
-                    .dinkHeading(24, color: AppTheme.smoke)
+                    .dinkHeading(20, color: AppTheme.smoke)
 
-                Text("Jump in with Dylan's sample account data as a left-handed player in San Francisco using a CourtSense One paddle.")
-                    .dinkBody(15, color: AppTheme.ash)
+                Text("Sign in with the email and password you used when you built your profile.")
+                    .dinkBody(14, color: AppTheme.ash)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Button("Sign In as Dylan") {
-                    if let profile = viewModel.signInReturningUser() {
-                        onComplete(profile)
+                TextField("Email", text: $viewModel.authEmail)
+                    .font(.dinkBody(14))
+                    .foregroundStyle(AppTheme.ink)
+                    .tint(AppTheme.ink)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(12)
+                    .background(AppTheme.smoke)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                SecureField("Password", text: $viewModel.authPassword)
+                    .font(.dinkBody(14))
+                    .foregroundStyle(AppTheme.ink)
+                    .tint(AppTheme.ink)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(12)
+                    .background(AppTheme.smoke)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                Button(viewModel.isAuthenticating ? "Signing In..." : "Sign In to My Profile") {
+                    Task {
+                        if let profile = await viewModel.signInReturningUser() {
+                            onComplete(profile)
+                        }
                     }
                 }
                 .buttonStyle(.bordered)
                 .tint(AppTheme.neon)
                 .disabled(!viewModel.canUseReturningUser)
             }
-            .padding(24)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 24)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 LinearGradient(
@@ -348,90 +300,114 @@ struct OnboardingFlowView: View {
                     endPoint: .bottomTrailing
                 )
             )
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
     }
 
     private var profileStep: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Text("Player Profile")
-                .dinkHeading(22, color: AppTheme.smoke)
+        VStack(alignment: .leading, spacing: 14) {
+            Button {
+                viewModel.goBack()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 14, weight: .bold))
 
-            // — Required profile fields —
-            TextField("Player name", text: $viewModel.playerName)
-                .font(.dinkBody(15))
-                .foregroundStyle(AppTheme.ink)
-                .tint(AppTheme.ink)
-                .textInputAutocapitalization(.words)
-                .padding()
-                .background(AppTheme.smoke)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-            TextField("City or ZIP code", text: $viewModel.playerLocation)
-                .font(.dinkBody(15))
-                .foregroundStyle(AppTheme.ink)
-                .tint(AppTheme.ink)
-                .textInputAutocapitalization(.words)
-                .padding()
-                .background(AppTheme.smoke)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-            Rectangle()
-                .fill(AppTheme.steel)
-                .frame(height: 1)
-
-            // — Account creation (optional) —
-            if viewModel.isAuthenticated {
-                Label("Signed in as \(viewModel.authenticatedEmail ?? "your account").", systemImage: "checkmark.circle.fill")
-                    .dinkBody(14, color: AppTheme.neon)
-
-            } else {
-                // Create account form
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Create your account (optional)")
-                        .dinkBody(13, color: AppTheme.ash)
-
-                    TextField("Email", text: $viewModel.authEmail)
-                        .font(.dinkBody(15))
-                        .foregroundStyle(AppTheme.ink)
-                        .tint(AppTheme.ink)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .padding()
-                        .background(AppTheme.smoke)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                    SecureField("Password (6+ characters)", text: $viewModel.authPassword)
-                        .font(.dinkBody(15))
-                        .foregroundStyle(AppTheme.ink)
-                        .tint(AppTheme.ink)
-                        .padding()
-                        .background(AppTheme.smoke)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                    if let error = viewModel.authErrorMessage {
-                        Text(error)
-                            .dinkBody(13, color: .red)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    if !viewModel.authEmail.isEmpty && !viewModel.authPassword.isEmpty {
-                        Button(viewModel.isAuthenticating ? "Creating Account..." : "Create Account") {
-                            Task {
-                                await viewModel.signUpWithEmail()
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(AppTheme.neon)
-                        .foregroundStyle(AppTheme.ink)
-                        .disabled(viewModel.isAuthenticating)
-                    }
+                    Text("Back")
+                        .font(.dinkBody(13))
                 }
+                .foregroundStyle(AppTheme.neon)
+            }
+            .buttonStyle(.plain)
+
+            Text("Player Profile")
+                .dinkHeading(20, color: AppTheme.smoke)
+
+            TextField("Player name", text: $viewModel.playerName)
+                .font(.dinkBody(14))
+                .foregroundStyle(AppTheme.ink)
+                .tint(AppTheme.ink)
+                .textInputAutocapitalization(.words)
+                .padding(12)
+                .background(AppTheme.smoke)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            TextField("City name", text: $viewModel.playerLocation)
+                .font(.dinkBody(14))
+                .foregroundStyle(AppTheme.ink)
+                .tint(AppTheme.ink)
+                .textInputAutocapitalization(.words)
+                .padding(12)
+                .background(AppTheme.smoke)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            // Text("Email and password are optional. Add them now if you want to post and like comments after onboarding.")
+              //  .dinkBody(12, color: AppTheme.ash)
+
+            TextField("Email", text: $viewModel.authEmail)
+                .font(.dinkBody(14))
+                .foregroundStyle(AppTheme.ink)
+                .tint(AppTheme.ink)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .padding(12)
+                .background(AppTheme.smoke)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            SecureField("Password", text: $viewModel.authPassword)
+                .font(.dinkBody(14))
+                .foregroundStyle(AppTheme.ink)
+                .tint(AppTheme.ink)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .padding(12)
+                .background(AppTheme.smoke)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            if viewModel.isAuthenticated {
+                Text("Signed in as \(viewModel.authenticatedEmail ?? "Authenticated player").")
+                    .dinkBody(12, color: AppTheme.neon)
             }
 
-            Button("Continue to Paddle Sync") {
-                viewModel.advance()
+            if let authStatusMessage = viewModel.authStatusMessage {
+                Text(authStatusMessage)
+                    .dinkBody(12, color: AppTheme.neon)
+            }
+
+            if let authErrorMessage = viewModel.authErrorMessage {
+                Text(authErrorMessage)
+                    .dinkBody(12, color: AppTheme.ash)
+            }
+
+/*            Picker("Dominant Arm", selection: $viewModel.dominantArm) {
+                ForEach(DominantArm.allCases) { arm in
+                    Text(arm.rawValue).tag(arm)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Picker("Skill Level", selection: $viewModel.skillLevel) {
+                ForEach(SkillLevel.allCases) { level in
+                    Text(level.rawValue).tag(level)
+                }
+            }
+            .pickerStyle(.menu)
+            .padding()
+            .background(
+                LinearGradient(
+                    colors: [AppTheme.graphite, AppTheme.steel],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+ */
+            Button(viewModel.isAuthenticating ? "Creating Account..." : "Continue to Paddle Sync") {
+                Task {
+                    await viewModel.continueFromProfile()
+                }
             }
             .buttonStyle(.borderedProminent)
             .tint(AppTheme.neon)
@@ -442,10 +418,10 @@ struct OnboardingFlowView: View {
     }
 
     private var paddleSyncStep: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Paddle Sync")
-                    .dinkHeading(22, color: AppTheme.smoke)
+                    .dinkHeading(20, color: AppTheme.smoke)
                 Spacer()
                 Button(viewModel.isScanning ? "Scanning..." : "Scan") {
                     Task {
@@ -459,7 +435,7 @@ struct OnboardingFlowView: View {
 
             if viewModel.availableDevices.isEmpty {
                 Text("Scan for nearby smart paddles to connect a mock training device.")
-                    .dinkBody(16, color: AppTheme.ash)
+                    .dinkBody(14, color: AppTheme.ash)
             } else {
                 ForEach(viewModel.availableDevices) { device in
                     Button {
@@ -476,7 +452,7 @@ struct OnboardingFlowView: View {
                             Image(systemName: viewModel.selectedDeviceID == device.id ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(AppTheme.neon)
                         }
-                        .padding()
+                        .padding(12)
                         .background(
                             LinearGradient(
                                 colors: [AppTheme.graphite, AppTheme.steel],
@@ -484,7 +460,7 @@ struct OnboardingFlowView: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -502,15 +478,6 @@ struct OnboardingFlowView: View {
                 .foregroundStyle(AppTheme.ink)
                 .disabled(viewModel.selectedDevice == nil || viewModel.isConnecting)
             }
-
-            Button("Skip for now") {
-                if let profile = viewModel.completeOnboarding() {
-                    onComplete(profile)
-                }
-            }
-            .buttonStyle(.bordered)
-            .tint(AppTheme.ash)
-            .frame(maxWidth: .infinity)
         }
     }
 
@@ -551,9 +518,9 @@ struct OnboardingFlowView: View {
 }
 
 private struct PreviewPersistenceService: PersistenceServiceProtocol {
-    func seedDylanSessions(profileID: UUID) {}
+    func seedSampleSessionsIfNeeded() {}
     func fetchSavedSessions() -> [StoredGameSession] { [] }
-    func saveProfile(name: String, locationName: String, dominantArm: DominantArm, skillLevel: SkillLevel, paddleName: String, supabaseUserID: UUID?) throws -> PlayerProfile {
+    func saveProfile(name: String, locationName: String, dominantArm: DominantArm, skillLevel: SkillLevel, paddleName: String) throws -> PlayerProfile {
         PlayerProfile(
             name: name,
             locationName: locationName,
