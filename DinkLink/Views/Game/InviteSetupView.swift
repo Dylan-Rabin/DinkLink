@@ -2,10 +2,12 @@ import SwiftUI
 
 struct InviteSetupView: View {
     let primaryPlayer: Player
+    let profileID: UUID          // The logged-in user's profile ID — always the session owner
     let mode: GameMode
     let bluetoothService: MockBluetoothService
     let persistenceService: PersistenceServiceProtocol
     let authService: SupabaseAuthService
+    var onSessionSaved: (() -> Void)? = nil
 
     @State private var opponentName = ""
     @State private var includeOpponent = true
@@ -66,7 +68,9 @@ struct InviteSetupView: View {
                     bluetoothService: bluetoothService,
                     persistenceService: persistenceService,
                     authService: authService,
-                    progressionPersistenceService: SupabaseProgressionPersistenceService()
+                    progressionPersistenceService: SupabaseProgressionPersistenceService(),
+                    ownerProfileID: profileID,
+                    onSessionSaved: onSessionSaved
                 )
             )
         }

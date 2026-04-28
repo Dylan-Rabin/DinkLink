@@ -39,7 +39,8 @@ final class OnboardingViewModel {
         bluetoothService: BluetoothServiceProtocol,
         persistenceService: PersistenceServiceProtocol,
         authService: SupabaseAuthService,
-        existingProfile: PlayerProfile?
+        existingProfile: PlayerProfile?,
+        profileSyncService: UserProfileSyncService = UserProfileSyncService()
     ) {
         self.bluetoothService = bluetoothService
         self.persistenceService = persistenceService
@@ -72,16 +73,12 @@ final class OnboardingViewModel {
         authService.isAuthenticating
     }
 
-    var authStatusMessage: String? {
-        authService.authStatusMessage
-    }
-
     var authErrorMessage: String? {
         authService.authErrorMessage
     }
 
-    var authenticatedEmail: String? {
-        authService.currentUserEmail
+    var authStatusMessage: String? {
+        authService.authStatusMessage
     }
 
     var selectedDevice: PaddleDevice? {
@@ -164,18 +161,20 @@ final class OnboardingViewModel {
 
     func completeOnboarding() -> PlayerProfile? {
         saveProfile(
-            paddleName: bluetoothService.connectedDevice?.name ?? selectedDevice?.name ?? "Mock Paddle"
+            paddleName: bluetoothService.connectedDevice?.name ?? selectedDevice?.name ?? "Mock Paddle",
+            supabaseUserID: authService.currentUserID
         )
     }
 
-    private func saveProfile(paddleName: String) -> PlayerProfile? {
+    private func saveProfile(paddleName: String, supabaseUserID: UUID? = nil) -> PlayerProfile? {
         do {
             let profile = try persistenceService.saveProfile(
                 name: playerName,
                 locationName: playerLocation,
                 dominantArm: dominantArm,
                 skillLevel: skillLevel,
-                paddleName: paddleName
+                paddleName: paddleName,
+                supabaseUserID: supabaseUserID
             )
             onboardingErrorMessage = nil
             return profile

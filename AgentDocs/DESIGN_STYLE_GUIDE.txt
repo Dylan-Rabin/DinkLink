@@ -1,0 +1,557 @@
+# DinkLink — Design & Code Style Guide
+**For agent use when creating new views, components, or services.**
+**Version:** April 13, 2026
+
+---
+
+## Contents
+
+1. Visual Identity
+2. Colours
+3. Typography
+4. Background & Layout System
+5. Component Patterns
+6. Button Styles
+7. Cards & Containers
+8. Navigation
+9. Swift Architecture Patterns
+10. ViewModels
+11. Services & Protocols
+12. SwiftData Models
+13. Animation Conventions
+14. Naming Conventions
+15. Anti-Patterns (what NOT to do)
+
+---
+
+## 1. Visual Identity
+
+DinkLink is a **dark, high-contrast sports-tech app** with neon-acid-green accents
+on a near-black background. The aesthetic is bold and athletic — think performance
+tracker, not casual lifestyle app.
+
+Core feel:
+- Dark UI (never light mode)
+- Neon (#D6F51D) as the primary action/highlight colour
+- Monospaced body text via Roboto Mono
+- Heavy display font (Dela Gothic One) for headings
+- Blurred glow orbs to add depth without clutter
+
+---
+
+## 2. Colours
+
+All colours come from `AppTheme` (DinkLink/Resources/AppTheme.swift).
+Never use raw hex values or system colours directly in views.
+
+| Token              | Hex       | Use                                              |
+|--------------------|-----------|--------------------------------------------------|
+| `AppTheme.neon`    | #D6F51D   | CTA buttons · active highlights · primary values |
+| `AppTheme.ink`     | #090909   | Text ON neon backgrounds · icon ON neon           |
+| `AppTheme.graphite`| #161616   | Mid-layer background · gradient middle stop      |
+| `AppTheme.steel`   | #2A2A2A   | Card backgrounds · secondary surfaces            |
+| `AppTheme.ash`     | #B7B7B7   | Secondary / label text · metadata                |
+| `AppTheme.smoke`   | #E7E7E7   | Primary body text on dark backgrounds            |
+| `AppTheme.deepShadow`| #050505 | Screen background top-stop (darkest)             |
+| `AppTheme.mutedGlow`| #D6F51D @28% opacity | Glow orb fill · gradient tint stop |
+
+**Rules:**
+- Foreground text on dark BG → `AppTheme.smoke` (primary) or `AppTheme.ash` (secondary)
+- Text on `AppTheme.neon` → always `AppTheme.ink` (never white)
+- Do NOT use `Color.primary`, `Color.secondary`, or `Color.white` directly
+- Opacity modifiers on theme colours are acceptable (e.g. `AppTheme.smoke.opacity(0.82)`)
+
+---
+
+## 3. Typography
+
+Two custom fonts — both accessed via View modifiers defined in `AppTheme.swift`.
+
+### `.dinkHeading(_ size: CGFloat, color: Color = AppTheme.smoke)`
+Font: **Dela Gothic One Regular** — display weight, wide letterforms.
+Use for: screen titles, section headers, card titles, stat callouts.
+
+| Size | Usage |
+|------|-------|
+| 30–34 | Screen hero title |
+| 20–24 | Section heading |
+| 18 | Card title / subsection |
+| 13–15 | Small label heading |
+
+### `.dinkBody(_ size: CGFloat = 15, color: Color = AppTheme.smoke)`
+Font: **Roboto Mono Regular** — monospaced, data-forward feel.
+Use for: all body copy, labels, form fields, metrics, status text.
+
+| Size | Usage |
+|------|-------|
+| 18 | Large body / subtitle |
+| 13–15 | Standard body copy |
+| 11–12 | Field labels · metadata · captions |
+
+**Rules:**
+- Never use `.font(.system(...))`, `.font(.body)`, or `.font(.headline)` directly
+- Do NOT mix `.foregroundColor()` — use the `color:` parameter on the modifier
+- `Text` with `.dinkHeading` for ALL titles; `Text` with `.dinkBody` for ALL body
+
+---
+
+## 4. Background & Layout System
+
+### Screen Background
+Every screen uses the same 3-stop diagonal gradient with a blurred glow orb.
+
+```swift
+// Background gradient — apply via .appScreenGradient() extension or inline:
+LinearGradient(
+    colors: [AppTheme.deepShadow, AppTheme.graphite, AppTheme.steel, AppTheme.mutedGlow],
+    startPoint: .topLeading,
+    endPoint: .bottomTrailing
+)
+.ignoresSafeArea()
+
+// Glow orb — position varies per screen (top-right or top-left)
+Circle()
+    .fill(AppTheme.mutedGlow)
+    .frame(width: 320, height: 320)      // 300–340 range acceptable
+    .blur(radius: 110)
+    .offset(x: 160, y: -220)            // adjust to taste
+```
+
+The `.appScreenGradient()` View extension applies the 3-stop gradient as `.background`.
+For full-screen use (inside `ZStack`), apply inline with `.ignoresSafeArea()`.
+
+### Content Padding
+- Outer `ScrollView` content padding: `20` on all sides
+- Between major sections: `spacing: 22–24`
+- Within a card: `padding(20)` or `padding(24)` for larger cards
+
+### Alignment
+- All top-level `VStack`s: `.alignment: .leading`
+- Headings: left-aligned
+- Grid layouts: `LazyVGrid` with `[GridItem(.flexible()), GridItem(.flexible())]` (2 cols)
+  or `[GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]` for stat grids
+
+---
+
+## 5. Component Patterns
+
+### Reusable components live in `Views/Components/`
+See `SportCard.swift` for the canonical card component example.
+
+### Naming
+- Component file name matches the struct name exactly
+- Parameter names are concise and semantic: `title`, `subtitle`, `accent`, `action`
+- Use `@ViewBuilder` closures for content injection, not embedded ViewModels
+
+### State
+- Pure display components receive data as `let` constants — no `@State` or `@Binding`
+- Interactive components use `let action: () -> Void` callbacks, not observers
+- Components that need two-way binding accept explicit `@Binding` params
+
+---
+
+## 6. Button Styles
+
+### Primary CTA (neon, dark text)
+```swift
+Button("Action Label") { /* … */ }
+    .buttonStyle(.borderedProminent)
+    .tint(AppTheme.neon)
+    .foregroundStyle(AppTheme.ink)
+```
+
+### Secondary / Outline (neon outline, no fill)
+```swift
+Button("Action Label") { /* … */ }
+    .buttonStyle(.bordered)
+    .tint(AppTheme.neon)
+```
+
+### Plain (no chrome — custom label)
+```swift
+Button(action: { /* … */ }) {
+    // Custom label view
+}
+.buttonStyle(.plain)
+```
+
+**Rules:**
+- CTA buttons always `.tint(AppTheme.neon)`
+- Destructive actions use `.tint(.red)` with `.bordered` style — never `.borderedProminent`
+- Disabled state: use `.disabled(condition)` — don't hide buttons
+- Never use custom `ButtonStyle` structs unless building a truly novel interactive control
+
+---
+
+## 7. Cards & Containers
+
+### Standard dark card (steel background)
+```swift
+VStack(alignment: .leading, spacing: 16) {
+    // content
+}
+.padding(20)
+.frame(maxWidth: .infinity, alignment: .leading)
+.background(AppTheme.steel.opacity(0.92))
+.clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+.overlay(
+    RoundedRectangle(cornerRadius: 26, style: .continuous)
+        .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
+)
+```
+
+### Gradient card (steel → graphite)
+```swift
+.background(
+    LinearGradient(
+        colors: [AppTheme.steel, AppTheme.graphite],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+)
+.clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+```
+
+### Neon-accent card (for hero/active content)
+```swift
+.background(
+    LinearGradient(
+        colors: [AppTheme.neon, AppTheme.ash],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+)
+.clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+```
+Use for: live game hero block, current active item. Text on this card → `AppTheme.ink`.
+
+### Step card (onboarding, settings panels)
+```swift
+.padding(24)
+.frame(maxWidth: .infinity, alignment: .leading)
+.background(
+    LinearGradient(
+        colors: [AppTheme.steel.opacity(0.98), AppTheme.graphite.opacity(0.96)],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+)
+.clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+.overlay(
+    RoundedRectangle(cornerRadius: 28, style: .continuous)
+        .stroke(AppTheme.neon.opacity(0.2), lineWidth: 1)     // neon stroke for step/form cards
+)
+```
+
+### Corner radius reference
+| Container type | `cornerRadius` |
+|---|---|
+| Large step / onboarding card | 28 |
+| Standard section card | 24–26 |
+| Small card / tile | 18–20 |
+| Inline widget / row | 16 |
+| Micro badge / pill | 10–12 |
+
+Always use `style: .continuous` on every `RoundedRectangle`.
+
+### Overlay strokes
+- Dark card on dark BG → `AppTheme.smoke.opacity(0.08)`
+- Accent / active card → `AppTheme.neon.opacity(0.2)`
+- Sport card (coloured bg) → `AppTheme.ink.opacity(0.08)`
+- `lineWidth: 1` — always
+
+---
+
+## 8. Navigation
+
+### Pattern
+All top-level tabs use `NavigationStack`. Never use `NavigationView`.
+
+```swift
+NavigationStack {
+    ZStack {
+        // background gradient + orb
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                // content
+            }
+            .padding(20)
+        }
+    }
+    .navigationDestination(item: $selectedItem) { item in
+        DestinationView(item: item)
+    }
+}
+```
+
+### Pushed screens
+- `.navigationBarTitleDisplayMode(.inline)` on pushed screens
+- `.toolbarColorScheme(.dark, for: .navigationBar)` — always dark toolbar
+- The tab bar tint is `AppTheme.neon` (set once in `MainTabView`)
+
+### Sheet / modal presentation
+- Use `.sheet(item:)` for item-driven sheets
+- Sheet content follows the same background gradient pattern
+
+---
+
+## 9. Swift Architecture Patterns
+
+### MVVM with `@Observable`
+All ViewModels use the Swift `Observation` framework — NOT `ObservableObject`/`@Published`.
+
+```swift
+import Foundation
+import Observation
+
+@MainActor
+@Observable
+final class MyFeatureViewModel {
+    var someState: String = ""
+    var isLoading = false
+    var errorMessage: String?
+
+    @ObservationIgnored
+    private let myService: MyServiceProtocol
+
+    init(myService: MyServiceProtocol = ConcreteService()) {
+        self.myService = myService
+    }
+
+    func doSomething() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            someState = try await myService.fetch()
+        } catch {
+            errorMessage = "Could not load data."
+        }
+        isLoading = false
+    }
+}
+```
+
+### View ↔ ViewModel wiring
+- `@State private var viewModel: MyViewModel` — for ViewModels owned by a View
+- `@Bindable var viewModel: MyViewModel` — for ViewModels passed in that need two-way binding
+- Never pass ViewModels down as `ObservedObject` or `EnvironmentObject`
+
+### Services injected via protocol
+All async service calls are hidden behind a protocol — never instantiated inline inside Views.
+
+```swift
+protocol MyServiceProtocol {
+    func fetch() async throws -> MyResult
+}
+
+final class ConcreteMyService: MyServiceProtocol {
+    func fetch() async throws -> MyResult { /* … */ }
+}
+```
+
+Use `@ObservationIgnored` on the service property inside a ViewModel so `@Observable`
+doesn't attempt to track it.
+
+---
+
+## 10. ViewModels
+
+### File location: `ViewModels/`
+- One file per ViewModel: `MyFeatureViewModel.swift`
+- Class name matches file name exactly
+
+### Rules
+- `@MainActor` on every ViewModel — all state updates happen on the main actor
+- `final class` — not struct, not open
+- `@Observable` — not `ObservableObject`
+- Async work via `async/await` — never Combine or callbacks
+- Error state exposed as `var errorMessage: String?` — not thrown to the View
+
+### ViewModel initialisation in Views
+```swift
+// Owned by the View (most common):
+@State private var viewModel: MyViewModel
+
+init(dependency: SomeDependency) {
+    _viewModel = State(initialValue: MyViewModel(dependency: dependency))
+}
+
+// Passed in from parent (when parent owns lifecycle):
+@Bindable var viewModel: MyViewModel
+```
+
+---
+
+## 11. Services & Protocols
+
+### File location: `Services/`
+- Each service has a protocol + one concrete implementation per file
+- OR: protocol in `Services/` file; mock in test target
+
+### Naming
+| Type | Example |
+|---|---|
+| Protocol | `WeatherServiceProtocol` |
+| Concrete | `OpenMeteoWeatherService` |
+| Mock (tests) | `MockWeatherService` |
+
+### Async pattern
+```swift
+protocol SomeServiceProtocol {
+    func fetch(id: UUID) async throws -> SomeModel
+    func save(_ item: SomeModel) async throws
+}
+```
+
+Never use completion handlers. Never return `AnyPublisher`. Always `async throws`.
+
+### Supabase REST calls
+Follow the pattern in `CommentsService.swift` and `ProgressionPersistenceService.swift`:
+- Base URL: `https://nrygqwhhzizplpgnxvzk.supabase.co/rest/v1/{table}`
+- Headers: `apikey`, `Authorization: Bearer {token}`, `Content-Type: application/json`
+- Auth token from `SupabaseAuthService.currentSession?.accessToken`
+- Decoding via `JSONDecoder` (snake_case strategy is applied)
+
+---
+
+## 12. SwiftData Models
+
+### File: `Models/AppModels.swift`
+All `@Model` classes live in this single file.
+
+### Rules
+- Annotate with `@Model`
+- Use `UUID` as the primary key field `id`
+- Primitive types only on the model (no nested `@Model` references unless via relationship)
+- Enums stored as `rawValue` strings: `var modeRawValue: String`; expose computed `var mode: GameMode`
+- Optional relationships use `Swift.Optional` — not force-unwrap
+- Add `isDirty: Bool = true` and `remoteID: UUID?` to any model that syncs remotely
+
+### Computed properties pattern (enum round-trip)
+```swift
+@Model
+final class StoredGameSession {
+    var modeRawValue: String = GameMode.dinkSinks.rawValue
+
+    var mode: GameMode {
+        get { GameMode(rawValue: modeRawValue) ?? .dinkSinks }
+        set { modeRawValue = newValue.rawValue }
+    }
+}
+```
+
+---
+
+## 13. Animation Conventions
+
+### Transitions in/out
+```swift
+.transition(.opacity.combined(with: .move(edge: .bottom)))   // slide-up reveal
+.transition(.opacity.combined(with: .scale(scale: 0.96)))    // scale-fade reveal
+```
+
+### Spring animation (navigation, modal, panel expand)
+```swift
+withAnimation(.spring(response: 0.7, dampingFraction: 0.9)) { }
+```
+
+### Glow orbs
+Glow orbs are `Circle().fill(AppTheme.mutedGlow).blur(radius: 100–110)`.
+They do NOT animate in most views — they're static depth elements.
+On splash/onboarding only, they can animate size with `.easeInOut(duration:)`.
+
+### Loading state
+- Use `ProgressView().tint(AppTheme.neon)` — never a custom spinner
+- Show inline, near the content it is loading
+- Always pair with `var isLoading: Bool` on the ViewModel
+
+---
+
+## 14. Naming Conventions
+
+### Files
+| Type | Pattern | Example |
+|---|---|---|
+| View | `{Feature}View.swift` | `StatsView.swift` |
+| Reusable component | `{Name}.swift` in `Views/Components/` | `SportCard.swift` |
+| ViewModel | `{Feature}ViewModel.swift` | `HomeViewModel.swift` |
+| Service | `{Name}Service.swift` | `WeatherService.swift` |
+| Model | All in `AppModels.swift` | — |
+| App theme | `AppTheme.swift` | — |
+
+### Symbols
+- Views: `PascalCase` struct
+- ViewModels: `PascalCase` final class
+- Services: `PascalCase` (protocol ends in `Protocol`)
+- Stored properties: `camelCase`
+- SwiftData raw-value backing: `{name}RawValue` (e.g. `modeRawValue`)
+- Private computed sub-views: `private var {name}: some View` (e.g. `private var hero: some View`)
+
+### Private sub-view convention
+Break complex views into `private var` computed properties, not separate structs:
+```swift
+private var header: some View {
+    VStack(alignment: .leading, spacing: 8) { ... }
+}
+
+private var metricsGrid: some View {
+    LazyVGrid(columns: grid, spacing: 14) { ... }
+}
+```
+
+---
+
+## 15. Anti-Patterns (do NOT do these)
+
+| Anti-pattern | Correct approach |
+|---|---|
+| `Color.white` / `Color.black` | `AppTheme.smoke` / `AppTheme.ink` |
+| `Color("someName")` from asset catalog | `AppTheme.*` token |
+| `.font(.system(...))` or `.font(.body)` | `.dinkBody(...)` or `.dinkHeading(...)` |
+| `.foregroundColor(...)` directly on Text | Use `color:` param on `.dinkBody`/`.dinkHeading` |
+| `ObservableObject` + `@Published` | `@Observable` + `@State`/`@Bindable` |
+| `@StateObject` / `@ObservedObject` | `@State` (owned) / `@Bindable` (passed-in) |
+| `NavigationView` | `NavigationStack` |
+| Completion handler callbacks | `async throws` |
+| `Color(red:green:blue:)` inline | `Color(hex:)` via `AppTheme` init |
+| Raw `RoundedRectangle` without `style: .continuous` | Always add `style: .continuous` |
+| `cornerRadius(_:)` on a view | `clipShape(RoundedRectangle(cornerRadius:style:))` |
+| Service instantiated inside a View | Injected via ViewModel init |
+| Logic inside a View body | Move to ViewModel method |
+| Hard-coded strings for Supabase table names | Use constant or pass as parameter |
+| `.padding()` without explicit value | Always specify value: `.padding(20)` |
+
+---
+
+## Quick Reference Checklist (for new screen/feature)
+
+- [ ] Screen uses `NavigationStack` with `ZStack` + gradient background + glow orb
+- [ ] `ScrollView` → `VStack(alignment: .leading, spacing: 22)` → `.padding(20)`
+- [ ] Screen title uses `.dinkHeading(30, color: AppTheme.neon)`
+- [ ] Subtitle uses `.dinkBody(13, color: AppTheme.ash)`
+- [ ] All section headers use `.dinkHeading(20, color: AppTheme.smoke)`
+- [ ] Cards use correct corner radius and `style: .continuous`
+- [ ] Cards have 1pt overlay stroke at 8% opacity
+- [ ] Buttons use `.tint(AppTheme.neon)` with correct style
+- [ ] ViewModel is `@Observable`, `@MainActor`, `final class`
+- [ ] ViewModel holds service as `@ObservationIgnored private let service: Protocol`
+- [ ] Service follows `async throws` protocol pattern
+- [ ] New `@Model` includes `isDirty` and `remoteID` if it syncs to Supabase
+- [ ] No system colours, no system fonts used directly
+
+---
+
+## Files Reference
+
+| File | Purpose |
+|---|---|
+| `DinkLink/Resources/AppTheme.swift` | Colour tokens, font extensions, gradient extension |
+| `DinkLink/Views/Components/SportCard.swift` | Canonical card component example |
+| `DinkLink/Views/Home/HomeView.swift` | Canonical full screen layout example |
+| `DinkLink/Views/Home/ProfileView.swift` | Canonical form/settings screen example |
+| `DinkLink/Views/Game/LiveGameView.swift` | Canonical sub-view decomposition example |
+| `DinkLink/Views/Stats/StatsView.swift` | Canonical chart + grid stats screen example |
+| `DinkLink/Views/Onboarding/OnboardingFlowView.swift` | Canonical animation + multi-step flow |
+| `DinkLink/ViewModels/HomeViewModel.swift` | Canonical ViewModel example |
+| `DinkLink/Models/AppModels.swift` | All SwiftData models |
+| `AgentDocs/DATABASE_README.txt` | Database schema and query reference |

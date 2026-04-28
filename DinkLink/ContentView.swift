@@ -4,7 +4,7 @@ import SwiftUI
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [PlayerProfile]
-    @Query(sort: \StoredGameSession.endDate, order: .reverse) private var sessions: [StoredGameSession]
+    @Query(sort: \StoredGameSession.endDate, order: .reverse) private var allSessions: [StoredGameSession]
 
     // These reference types are owned by the root view, so with the Observation
     // framework they live in @State instead of @StateObject.
@@ -18,10 +18,13 @@ struct ContentView: View {
             if let profile = activeProfile {
                 MainTabView(
                     profile: profile,
-                    sessions: sessions,
+                    sessions: sessions(for: profile),
                     bluetoothService: bluetoothService,
                     authService: authService,
-                    onLogOut: handleLogOut
+                    onLogOut: handleLogOut,
+                    onSessionSaved: {
+                        appViewModel.startSync(context: modelContext, authService: authService)
+                    }
                 )
             } else {
                 OnboardingRootView(
@@ -31,12 +34,30 @@ struct ContentView: View {
                     authService: authService
                 ) { profile in
                     locallyCompletedProfile = profile
+                    // Kick off a sync right after the user finishes onboarding.
+                    appViewModel.startSync(context: modelContext, authService: authService)
                 }
             }
         }
         .task {
-            appViewModel.bootstrapIfNeeded(
-                persistenceService: SwiftDataPersistenceService(context: modelContext)
+            // Purge any sessions that have no ownerProfileID match (legacy seed data, etc.)
+            let knownIDs = Set(profiles.map(\.id))
+            let orphans = allSessions.filter { session in
+                guard let ownerID = session.ownerProfileID else { return true }
+                return !knownIDs.contains(ownerID)
+            }
+            orphans.forEach { modelContext.delete($0) }
+            if !orphans.isEmpty { try? modelContext.save() }
+
+            // Initial sync on launch if already signed in.
+            appViewModel.startSync(context: modelContext, authService: authService)
+        }
+        // Re-sync whenever connectivity is restored.
+        .onChange(of: appViewModel.networkMonitor.isConnected) { _, isConnected in
+            appViewModel.handleConnectivityChange(
+                isConnected: isConnected,
+                context: modelContext,
+                authService: authService
             )
         }
     }
@@ -46,8 +67,18 @@ struct ContentView: View {
     }
 
     private var completedProfile: PlayerProfile? {
-        profiles.first(where: \.completedOnboarding)
+        // profile.id == auth UUID, so find the profile for the currently signed-in user.
+        // Fall back to any completed profile for unauthenticated (demo) users.
+        if let userID = authService.currentUserID {
+            return profiles.first { $0.id == userID }
+        }
+        return profiles.first(where: \.completedOnboarding)
     }
+
+    private func sessions(for profile: PlayerProfile) -> [StoredGameSession] {
+        allSessions.filter { $0.ownerProfileID == profile.id }
+    }
+
 
     @MainActor
     private func handleLogOut(_ profile: PlayerProfile) {
@@ -77,14 +108,13 @@ private struct OnboardingRootView: View {
         onComplete: @escaping (PlayerProfile) -> Void
     ) {
         self.onComplete = onComplete
-        _viewModel = State(
-            initialValue: OnboardingViewModel(
-                bluetoothService: bluetoothService,
-                persistenceService: persistenceService,
-                authService: authService,
-                existingProfile: existingProfile
-            )
+        let vm = OnboardingViewModel(
+            bluetoothService: bluetoothService,
+            persistenceService: persistenceService,
+            authService: authService,
+            existingProfile: existingProfile
         )
+        _viewModel = State(initialValue: vm)
     }
 
     var body: some View {

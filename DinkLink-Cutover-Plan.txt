@@ -1,0 +1,517 @@
+DinkLink — Supabase Cutover Plan (with Offline-First Support)
+Generated: April 13, 2026  |  Revised: April 13, 2026 (Option A + MVP Alignment)
+======================================================================
+
+OVERVIEW
+--------
+This document describes the phased plan to migrate DinkLink's data
+layer to Supabase while maintaining full offline functionality via
+SwiftData as the on-device cache. The architecture follows an
+"offline-first, sync when online" pattern:
+
+  Write → SwiftData (always)
+       → Supabase (if online; queued and replayed if offline)
+
+  Read  → SwiftData (always, instant)
+       → Supabase pull (on launch / background refresh if online)
+
+The app must never be broken for a user without internet.
+
+
+======================================================================
+PHASE 0 — PRE-WORK (no user-facing changes)
+======================================================================
+
+Goal: Set up infrastructure and safety nets before touching any code.
+
+  0.1  Supabase Schema Migration
+       ───────────────────────────
+       Run the following SQL in Supabase Studio (or via migrations):
+
+       a) user_profiles table  [includes XP — user_progression MERGED IN]
+          CREATE TABLE user_profiles (
+            user_id            uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+            display_name       text NOT NULL DEFAULT '',
+            avatar_url         text,
+            total_xp           int NOT NULL DEFAULT 0,
+            xp_updated_at      timestamptz,
+            current_streak     int NOT NULL DEFAULT 0,       -- NEW: consecutive daily-play streak
+            longest_streak     int NOT NULL DEFAULT 0,       -- NEW: all-time best streak
+            last_active_date   date,                         -- NEW: last calendar day with a session
+            gpn_username       text,
+            gpn_profile_url    text,
+            gpn_singles_level  numeric(4,2),
+            gpn_doubles_level  numeric(4,2),
+            gpn_dupr_rating    numeric(4,2),
+            gpn_last_synced_at timestamptz,
+            created_at         timestamptz NOT NULL DEFAULT now(),
+            updated_at         timestamptz NOT NULL DEFAULT now()
+          );
+
+          NOTE: The separate user_progression table is NOT created.
+          NOTE: level_tiers table is NOT created.
+          4 ranks per MVP: Bronze Paddle ≥0 XP | Silver Spin ≥500 |
+          Gold Rally ≥1400 | Diamond Dink ≥5000
+
+       b) badges table
+          CREATE TABLE badges (
+            id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            key         text NOT NULL UNIQUE,
+            name        text NOT NULL,
+            description text NOT NULL DEFAULT '',
+            icon_url    text NOT NULL DEFAULT '',
+            badge_type  text NOT NULL CHECK (badge_type IN
+                          ('achievement','milestone','tournament','level')),
+            xp_reward   int NOT NULL DEFAULT 0,
+            is_hidden   bool NOT NULL DEFAULT false,
+            created_at  timestamptz NOT NULL DEFAULT now()
+          );
+
+       c) user_badges table
+          CREATE TABLE user_badges (
+            id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id     uuid NOT NULL REFERENCES user_profiles(user_id) ON DELETE CASCADE,
+            badge_id    uuid NOT NULL REFERENCES badges(id),
+            awarded_at  timestamptz NOT NULL DEFAULT now(),
+            source      text,
+            session_id  uuid,
+            UNIQUE (user_id, badge_id)
+          );
+
+       d) saved_locations table
+          CREATE TABLE saved_locations (
+            id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id     uuid NOT NULL REFERENCES user_profiles(user_id) ON DELETE CASCADE,
+            label       text NOT NULL DEFAULT 'Home',
+            place_name  text NOT NULL,
+            address     text,
+            latitude    float8,
+            longitude   float8,
+            is_home     bool NOT NULL DEFAULT false,
+            created_at  timestamptz NOT NULL DEFAULT now()
+          );
+          -- Enforces one home location per user
+          CREATE UNIQUE INDEX saved_locations_one_home_per_user
+            ON saved_locations (user_id)
+            WHERE is_home = true;
+
+       e) Row Level Security (RLS) — enable on all new tables
+          ALTER TABLE user_profiles      ENABLE ROW LEVEL SECURITY;
+          ALTER TABLE saved_locations    ENABLE ROW LEVEL SECURITY;
+          ALTER TABLE badges             ENABLE ROW LEVEL SECURITY;
+          ALTER TABLE user_badges        ENABLE ROW LEVEL SECURITY;
+
+          -- Users can only read/write their own rows
+          CREATE POLICY "own profile"    ON user_profiles
+            USING (user_id = auth.uid());
+          CREATE POLICY "own locations"  ON saved_locations
+            USING (user_id = auth.uid());
+          CREATE POLICY "own badges"     ON user_badges
+            USING (user_id = auth.uid());
+          -- Badges catalog is public read
+          CREATE POLICY "read badges"    ON badges
+            FOR SELECT USING (true);
+
+  0.2  SwiftData Model Extensions
+       ───────────────────────────
+       Add new local models WITHOUT removing anything existing:
+
+       a) Extend PlayerProfile (@Model) to add:
+            var supabaseProfileSynced: Bool  = false
+            var gpnUsername: String?
+            var homeLocationLabel: String?
+
+       b) Add new @Model class: SavedLocation
+            id:           UUID   (unique)
+            label:        String
+            placeName:    String
+            address:      String?
+            latitude:     Double?
+            longitude:    Double?
+            isHome:       Bool
+            supabaseID:   UUID?   ← remote ID once synced
+            isDirty:      Bool    ← true = needs sync to Supabase
+            createdAt:    Date
+
+       c) Add SyncQueueItem @Model class (the offline queue):
+            id:           UUID   (unique)
+            operation:    String  ← "upsert_profile" | "save_session" |
+                                     "upsert_location" | "award_badge" |
+                                     "xp_events"
+            payload:      Data    ← JSONencoded request body
+            tableName:    String  ← Supabase table target
+            createdAt:    Date
+            retryCount:   Int     default 0
+
+          NOTE: "upsert_progression" operation removed. XP is now written
+          directly to user_profiles via the "upsert_profile" operation.
+
+  0.3  Add Network Monitor
+       ───────────────────────────
+       Create NetworkMonitor (using NWPathMonitor) as a shared
+       @Observable singleton injected into the environment:
+
+         @Observable final class NetworkMonitor {
+           var isConnected: Bool = false
+           private let monitor = NWPathMonitor()
+           ...
+         }
+
+       Inject into DinkLinkApp via .environment(NetworkMonitor()).
+
+
+======================================================================
+PHASE 1 — PROFILE SYNC  (Week 1)
+======================================================================
+
+Goal: When a user completes onboarding or updates their profile,
+write to SwiftData immediately, then sync to user_profiles in
+Supabase when online.
+
+  Steps:
+
+  1.1  Create SupabaseProfileService
+         func upsertProfile(userID: UUID, accessToken: String,
+                            displayName: String, ...) async throws
+         → POST/PATCH /rest/v1/user_profiles with Prefer: resolution=merge-duplicates
+
+  1.2  Update PersistenceServiceProtocol.saveProfile(...)
+         - Write to SwiftData as before (unchanged behavior)
+         - Set PlayerProfile.isDirty = true
+         - If online: call SupabaseProfileService.upsertProfile, clear isDirty
+         - If offline: enqueue SyncQueueItem(operation: "upsert_profile", ...)
+
+  1.3  Create SyncService
+         func drainQueue(accessToken: String) async
+         On each drain attempt:
+           - Fetch all SyncQueueItem from SwiftData
+           - For each item, call the appropriate Supabase endpoint
+           - On success: delete the SyncQueueItem
+           - On failure: increment retryCount; abandon after 5 retries
+
+  1.4  Trigger drain on app foreground / connectivity restored
+         In AppViewModel.bootstrapIfNeeded:
+           if networkMonitor.isConnected && authService.isAuthenticated {
+               await syncService.drainQueue(accessToken: ...)
+           }
+
+  Rollback: If Supabase call fails online, profile is already in
+  SwiftData — user sees no disruption.
+
+
+======================================================================
+PHASE 2 — SESSION SYNC  (Week 2)
+======================================================================
+
+Goal: Game sessions saved via PersistenceService.saveSession(_:) are
+stored locally first, then replicated to a new remote game_sessions
+table in Supabase.
+
+  Steps:
+
+  2.1  New Supabase table: game_sessions
+         CREATE TABLE game_sessions (
+           id                    uuid PRIMARY KEY,
+           user_id               uuid NOT NULL REFERENCES user_profiles(user_id),
+           mode                  text NOT NULL,
+           start_date            timestamptz NOT NULL,
+           end_date              timestamptz NOT NULL,
+           player_one_name       text NOT NULL,
+           player_two_name       text NOT NULL,
+           player_one_score      int NOT NULL DEFAULT 0,
+           player_two_score      int NOT NULL DEFAULT 0,
+           average_swing_speed   float8 NOT NULL DEFAULT 0,
+           max_swing_speed       float8 NOT NULL DEFAULT 0,
+           sweet_spot_percentage float8 NOT NULL DEFAULT 0,
+           total_hits            int NOT NULL DEFAULT 0,
+           winner_name           text NOT NULL DEFAULT '',
+           longest_streak        int NOT NULL DEFAULT 0,
+           total_valid_volleys   int NOT NULL DEFAULT 0,
+           best_rally_length     int NOT NULL DEFAULT 0,
+           is_challenge          bool NOT NULL DEFAULT false,   -- challenge match
+           is_pickle_cup_win     bool NOT NULL DEFAULT false,   -- won the full Pickle Cup
+           created_at            timestamptz NOT NULL DEFAULT now()
+         );
+         ALTER TABLE game_sessions ENABLE ROW LEVEL SECURITY;
+         CREATE POLICY "own sessions" ON game_sessions
+           USING (user_id = auth.uid());
+
+  2.2  New Supabase table: shot_events
+         (Per MVP spec section 6 — ShotEvent has gameId + sessionId)
+         CREATE TABLE shot_events (
+           id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+           session_id     uuid NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,
+           user_id        uuid NOT NULL REFERENCES user_profiles(user_id),
+           timestamp      timestamptz NOT NULL,
+           speed_mph      float8 NOT NULL,
+           hit_sweet_spot bool NOT NULL,
+           spin_rpm       float8 NOT NULL DEFAULT 0,
+           created_at     timestamptz NOT NULL DEFAULT now()
+         );
+         ALTER TABLE shot_events ENABLE ROW LEVEL SECURITY;
+         CREATE POLICY "own shots" ON shot_events
+           USING (user_id = auth.uid());
+
+  2.3  Add to StoredGameSession (@Model):
+         var remoteID: UUID?         ← Supabase id once confirmed
+         var isDirty: Bool           ← true = awaiting remote write
+         var isChallenge: Bool       ← challenge match flag (NEW)
+         var isPickleCupWin: Bool    ← Pickle Cup winner flag (NEW)
+
+  2.4  Update PersistenceService.saveSession(_:)
+         - Insert into SwiftData with isDirty = true (unchanged)
+         - If online + authenticated: POST to /rest/v1/game_sessions,
+           set isDirty = false, set remoteID
+         - After session POST, batch-POST shot events to /rest/v1/shot_events
+         - If offline: enqueue SyncQueueItem(operation: "save_session", ...)
+           (shot events bundled in same payload)
+
+  2.5  On app launch (if online): pull sessions from Supabase
+         GET /rest/v1/game_sessions?user_id=eq.{uid}&order=end_date.desc
+         Merge with local SwiftData (upsert by id, skip if already present).
+         This enables multi-device access.
+
+  2.6  Add SyncService.drainQueue entry for "save_session"
+         Deserialize payload → POST to /rest/v1/game_sessions, then
+         POST shot events to /rest/v1/shot_events.
+
+
+======================================================================
+PHASE 3 — LOCATIONS  (Week 2–3)
+======================================================================
+
+Goal: Replace the single PlayerProfile.locationName String with the
+new saved_locations table, keeping backward compatibility.
+
+  Steps:
+
+  3.1  Migrate existing locationName on first run
+         In bootstrapIfNeeded: if SavedLocation records are empty
+         and PlayerProfile.locationName is non-empty, create one
+         SavedLocation(label: "Home", placeName: locationName,
+                       isHome: true, isDirty: true).
+         This preserves existing user data automatically.
+
+  3.2  Create SupabaseLocationsService
+         fetchLocations(userID:accessToken:) → GET saved_locations
+         upsertLocation(...)                 → POST with merge-duplicates
+         deleteLocation(id:accessToken:)     → DELETE
+
+  3.3  Update all views that read PlayerProfile.locationName
+         Replace with: profile.savedLocations.first(where: \.isHome)?.placeName
+         (Or keep locationName as a computed var that delegates to SavedLocation)
+
+  3.4  HomeViewModel.loadTodayWeather(for:)
+         No change needed — it already takes a String. Pass the home
+         location's placeName.
+
+
+======================================================================
+PHASE 4 — BADGES & LEVELS  (Week 3–4)
+======================================================================
+
+Goal: Add badge award tracking. Level tiers stay as Swift constants
+(no DB table needed — Option A).
+
+  4.1  Level Tier Resolution  [NO CHANGE REQUIRED]
+         ProgressionService.levelThresholds already contains the thresholds
+         as a Swift constant dictionary. No DB table, no network call.
+         4 ranks per MVP spec:
+           Bronze Paddle  ≥0 XP    (levels 1–3)
+           Silver Spin    ≥500 XP  (levels 4–7)
+           Gold Rally     ≥1400 XP (levels 8–10)
+           Diamond Dink   ≥5000 XP (level 11)
+
+  4.2  XP Sources — align ProgressionService.swift to MVP spec
+         Required changes to calculateSessionXP:
+
+           CURRENT                                  →  MVP TARGET
+           Per 10 hits: +10                         →  10+ clean hits: +20
+           Sweet spot 40%/60%/75%: +15/+15/+20      →  Personal best: +40
+           Played with friend: +25                  →  Friend match: +30
+           New swing speed PB: +25                  →  (merged into Personal best)
+           New sweet spot PB: +25                   →  (merged into Personal best)
+           [none]                                   →  5-day streak: +75
+           [none]                                   →  Challenge win: +100
+           Played 10/20/30+ min: +10 each           →  REMOVED
+
+         Update SessionStats struct: add currentStreak, isChallenge, isPickleCupWin.
+         Update ProgressionService.calculateSessionXP to use new values.
+
+  4.3  Streak Tracking
+         After each session end, in LiveGameViewModel.finalizeSession:
+           - Compare PlayerProfile.lastActiveDate vs Calendar.current.startOfDay
+           - Same day: no change to streak
+           - Yesterday: currentStreak += 1, update lastActiveDate
+           - Older: currentStreak = 1, update lastActiveDate
+           - longestStreak = max(longestStreak, currentStreak)
+         Sync currentStreak + lastActiveDate to user_profiles.
+         5-day streak XP: award only when streak crosses a multiple of 5.
+
+  4.4  Badge Catalog
+         Create BadgeCatalogService:
+           func fetchBadges(accessToken: String) async throws -> [Badge]
+         Cache full catalog in UserDefaults ("badge_catalog_cache", 24h TTL).
+         Offline: use cached catalog. If no cache: show "badges unavailable".
+
+  4.3  Badge Evaluation
+         After each session completes (LiveGameViewModel.finalizeSession):
+           - Evaluate locally which badges are newly earned based on SwiftData
+             session history + badge catalog rules.
+           - If online: POST to /rest/v1/user_badges.
+           - If offline: enqueue SyncQueueItem(operation: "award_badge", ...).
+
+  4.4  Badge rules are encoded in badge.key conventions
+         The app evaluates rules locally (e.g. "first_session", "100_hits",
+         "10_sessions") against local SwiftData. No server round-trip needed
+         to determine eligibility.
+
+
+======================================================================
+PHASE 5 — PROGRESSION SYNC HARDENING  (Week 4)
+======================================================================
+
+Goal: The existing ProgressionPersistenceService writes total_xp to
+the old user_progression table. Migrate it to write to user_profiles
+instead, and wire it into the offline SyncQueue.
+
+  5.1  Update SupabaseProgressionPersistenceService
+         Replace all references to /rest/v1/user_progression
+         with /rest/v1/user_profiles.
+         Change the upsert payload to update total_xp and xp_updated_at
+         columns on user_profiles (Prefer: resolution=merge-duplicates).
+
+  5.2  Wrap applySessionAward() in offline guard
+         If online: call updated upsert on user_profiles.
+         If offline: enqueue SyncQueueItem(operation: "xp_events",
+                     payload: XPBreakdown encoded). On drain, POST
+                     xp_events rows then PATCH user_profiles.total_xp.
+
+  5.3  On drain: replay XP events in chronological order
+         Order SyncQueueItem by createdAt ASC before processing.
+         XP events are additive — order matters for accurate totals.
+
+  5.4  Conflict resolution on backfill
+         Keep existing backfillProgressionIfNeeded logic.
+         Remote total_xp on user_profiles is source of truth if user
+         signed in on multiple devices; local XP pushed only if local > remote.
+
+
+======================================================================
+PHASE 6 — GPN INTEGRATION  (Week 5–6)
+======================================================================
+
+Goal: Allow users to link their GPN account and surface their
+calculated playing levels and DUPR rating on their profile.
+
+NOTE: GPN has a real developer REST API at
+globalpickleball.network/developers with endpoints including:
+  GET  /user/calculated-levels
+  GET  /user/stats
+  GET  /user/info
+  POST /login  (returns access token)
+Developer registration is required. This replaces the earlier
+HTML-scraping approach.
+
+  6.1  Supabase Edge Function: gpn-oauth
+         Runtime: Deno
+         Input:  { user_id, gpn_username, gpn_password }
+         Steps:
+           a) POST to GPN /login endpoint to get access_token.
+           b) Store access_token in Supabase Vault (NOT in user_profiles).
+           c) GET /user/calculated-levels using the token.
+           d) GET /user/stats using the token.
+           e) UPSERT into user_profiles:
+              gpn_singles_level, gpn_doubles_level, gpn_dupr_rating,
+              gpn_username, gpn_profile_url, gpn_last_synced_at = now().
+         Trigger: called once on account link, then on-demand sync.
+
+  6.2  Supabase Edge Function: gpn-sync (schedule or on-demand)
+         Uses stored Vault token to refresh GPN levels and stats.
+         Rotates token if GPN provides refresh tokens.
+
+  6.3  App-side GPN linking flow
+         In ProfileView: "Link GPN Account" button.
+         Secure credential input → calls gpn-oauth Edge Function.
+         "Refresh GPN Data" button → calls gpn-sync Edge Function.
+         Displays gpn_singles_level, gpn_doubles_level, gpn_dupr_rating
+         with gpn_last_synced_at timestamp.
+         Show stale warning if gpn_last_synced_at > 7 days old.
+
+  6.4  Offline behavior for GPN
+         GPN sync is online-only. Show cached values with
+         "Last updated: X days ago". Sync button disabled when offline.
+
+
+======================================================================
+SYNC ARCHITECTURE SUMMARY
+======================================================================
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  App Layer (SwiftUI Views + ViewModels)                         │
+  └───────────────────────────┬─────────────────────────────────────┘
+                              │ always reads/writes
+  ┌───────────────────────────▼─────────────────────────────────────┐
+  │  SwiftData (on-device)                                          │
+  │  PlayerProfile, StoredGameSession, SavedLocation,               │
+  │  SyncQueueItem  ← offline write queue                           │
+  └────────────────┬────────────────────────────────────────────────┘
+                   │ SyncService drains queue when online
+  ┌────────────────▼────────────────────────────────────────────────┐
+  │  Supabase (remote)                                              │
+  │  auth.users, user_profiles (incl. total_xp), game_sessions,    │
+  │  saved_locations, xp_events, badges, user_badges,              │
+  │  comments, comment_likes                                        │
+  └─────────────────────────────────────────────────────────────────┘
+
+  ON WRITE (any data):
+    1. Write to SwiftData immediately → UI is never blocked
+    2. Mark record isDirty = true
+    3. NetworkMonitor.isConnected?
+       YES → call Supabase service → on success: isDirty = false
+       NO  → enqueue SyncQueueItem
+
+  ON APP FOREGROUND / CONNECTIVITY RESTORED:
+    1. SyncService.drainQueue() processes all SyncQueueItems oldest-first
+    2. Pull fresh remote data down (sessions, locations, badges, progression)
+    3. Merge into SwiftData (upsert by id, no duplicates)
+
+  CONFLICT RULE:
+    - For sessions and locations: local write wins (append-only)
+    - For progression/XP: remote total wins if remote > local
+    - For badges: union (add any remote badges not in local set)
+
+
+======================================================================
+ROLLBACK / SAFETY NOTES
+======================================================================
+
+  - All phases are additive. No existing tables or columns are dropped.
+  - SwiftData is never removed — it is the permanent local cache.
+  - The SyncQueueItem table ensures no data is lost if the network
+    drops mid-session.
+  - Phase 0 and Phase 1 can be deployed independently without any
+    visible change to the user — they lay groundwork only.
+  - Feature flags (stored in UserDefaults) can gate each phase:
+      "supabase_profile_sync_enabled"
+      "supabase_session_sync_enabled"
+      "badges_enabled"
+    This allows rollback by toggling a flag without an app update.
+  - All Supabase writes have Row Level Security — a user can only
+    read and write their own data.
+  - No Supabase credentials are stored in the app binary.
+    The publishable anon key is used for auth; all privileged
+    writes are gated by the Bearer JWT from the signed-in session.
+
+
+======================================================================
+PHASE TIMELINE (SUGGESTED)
+======================================================================
+
+  Week 1   Phase 0 + Phase 1  (schema + profile sync)
+  Week 2   Phase 2 + Phase 3  (session sync + locations)
+  Week 3   Phase 4            (badges + level tiers)
+  Week 4   Phase 5            (progression hardening)
+  Week 5–6 Phase 6            (GPN integration)
+  Week 7   QA pass, offline simulation testing, TestFlight beta
+  Week 8   App Store submission

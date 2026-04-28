@@ -7,6 +7,7 @@ struct MainTabView: View {
     let bluetoothService: MockBluetoothService
     let authService: SupabaseAuthService
     let onLogOut: (PlayerProfile) -> Void
+    var onSessionSaved: (() -> Void)? = nil
 
     var body: some View {
         TabView {
@@ -20,7 +21,7 @@ struct MainTabView: View {
                     Label("Home", systemImage: "house.fill")
                 }
 
-            StatsView(profile: profile, sessions: displaySessions)
+            StatsView(profile: profile, sessions: sessions)
                 .tabItem {
                     Label("Stats", systemImage: "chart.line.uptrend.xyaxis")
                 }
@@ -34,7 +35,7 @@ struct MainTabView: View {
                 profile: profile,
                 bluetoothService: bluetoothService,
                 authService: authService,
-                sessions: displaySessions,
+                sessions: sessions,
                 onLogOut: onLogOut
             )
             .tabItem {
@@ -44,9 +45,6 @@ struct MainTabView: View {
         .tint(AppTheme.neon)
     }
 
-    private var displaySessions: [StoredGameSession] {
-        sessions.isEmpty ? SampleData.sampleSessions : sessions
-    }
 }
 
 struct HomeView: View {
@@ -56,6 +54,7 @@ struct HomeView: View {
     let sessions: [StoredGameSession]
     let bluetoothService: MockBluetoothService
     let authService: SupabaseAuthService
+    var onSessionSaved: (() -> Void)? = nil
 
     @State private var viewModel: HomeViewModel
     @State private var selectedMode: GameMode?
@@ -68,12 +67,14 @@ struct HomeView: View {
         sessions: [StoredGameSession],
         bluetoothService: MockBluetoothService,
         authService: SupabaseAuthService,
+        onSessionSaved: (() -> Void)? = nil,
         weatherService: WeatherServiceProtocol = OpenMeteoWeatherService()
     ) {
         self.profile = profile
         self.sessions = sessions
         self.bluetoothService = bluetoothService
         self.authService = authService
+        self.onSessionSaved = onSessionSaved
         _viewModel = State(initialValue: HomeViewModel(weatherService: weatherService))
     }
 
@@ -154,13 +155,36 @@ struct HomeView: View {
             .task(id: profile.locationName) {
                 await viewModel.loadTodayWeather(for: profile.locationName)
             }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showCurrentSession = true
+                    } label: {
+                        Image(systemName: "figure.pickleball")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .tint(AppTheme.neon)
+                    .accessibilityLabel("Open Current Session")
+                }
+            }
+            .navigationDestination(isPresented: $showCurrentSession) {
+                CurrentSessionView(
+                    profile: profile,
+                    bluetoothService: bluetoothService,
+                    authService: authService,
+                    persistenceService: SwiftDataPersistenceService(context: modelContext),
+                    onSessionSaved: onSessionSaved
+                )
+            }
             .navigationDestination(item: $selectedMode) { mode in
                 InviteSetupView(
                     primaryPlayer: profile.asPlayer,
+                    profileID: profile.id,
                     mode: mode,
                     bluetoothService: bluetoothService,
                     persistenceService: SwiftDataPersistenceService(context: modelContext),
-                    authService: authService
+                    authService: authService,
+                    onSessionSaved: onSessionSaved
                 )
             }
             .navigationDestination(isPresented: $showCurrentSession) {

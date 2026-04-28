@@ -12,7 +12,13 @@ struct DinkLinkApp: App {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(for: [PlayerProfile.self, StoredGameSession.self])
+        .modelContainer(for: [
+            PlayerProfile.self,
+            StoredGameSession.self,
+            SavedLocation.self,
+            SyncQueueItem.self,
+            GPNProfile.self
+        ])
     }
 }
 

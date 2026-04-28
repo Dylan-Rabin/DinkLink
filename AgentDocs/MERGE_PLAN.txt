@@ -1,0 +1,387 @@
+# DinkLink — Merge Plan
+**Origin/main → feature/user-data-sync**
+**Prepared:** April 27, 2026
+
+---
+
+## Summary
+
+Two parallel branches have diverged from the `main` tag at commit `f016936`
+(Introduced Ranks/XP):
+
+  REPO (origin/main, commit e75f6ef)
+    Updated login UI, returning-user sign-in flow, back-button system,
+    live HUD grid, badge image assets, RankUpCelebrationView,
+    CurrentSessionView toolbar entry point.
+
+  WORKSPACE (feature/user-data-sync, commit 87e78bf)
+    Full Supabase sync layer: SyncService, NetworkMonitor,
+    GameSessionSyncService, UserProfileSyncService, token refresh,
+    ownerProfileID session scoping, new @Model classes (SavedLocation,
+    SyncQueueItem), streak/challenge MVP fields, Supabase migrations, tests.
+
+The goal is one merged codebase where:
+  - The REPO's updated UI / login flow is used (not the workspace's older one)
+  - The WORKSPACE's Supabase sync infrastructure is the backend layer
+
+---
+
+## Conflict Map
+
+Files touched by BOTH branches (must be hand-merged):
+
+  File                                  Repo change          Workspace change
+  ─────────────────────────────────────────────────────────────────────────────
+  AppModels.swift                        badgeAssetName       sync fields + new @Models
+  AuthService.swift                      friendlyError,       hasValidAccessToken,
+                                         improved validate    refreshSessionIfNeeded
+  LiveGameViewModel.swift                remove liveHud,      ownerProfileID,
+                                         remove RankUp,       onSessionSaved callback
+                                         remove pause
+  OnboardingViewModel.swift              signInReturningUser, (no workspace-only changes
+                                         canUseReturningUser, here — safe to use repo)
+                                         goBack()
+  InviteSetupView.swift                  profileID param      profileID + onSessionSaved
+  HomeView.swift                         CurrentSessionView   onSessionSaved, profileID,
+                                         toolbar, badge img,  real-sessions only
+                                         no sample fallback
+  ProfileView.swift                      badge image in card  (no workspace-only changes
+                                                               here — safe to use repo)
+  AppTheme.swift                         dinkBackButton()     (no workspace-only changes
+                                                               here — safe to use repo)
+
+Files only in REPO (pull in as-is):
+
+  DinkLink/Views/Components/RankUpCelebrationView.swift   — NEW, keep
+  DinkLink/Views/Stats/CurrentSessionView.swift           — NEW, keep
+  DinkLink/Assets.xcassets/badges/**                      — badge images, keep
+  DinkLink.xcodeproj/project.pbxproj                      — Xcode project, needs merge
+
+Files only in WORKSPACE (keep as-is, not in repo):
+
+  DinkLink/Services/SyncService.swift
+  DinkLink/Services/GameSessionSyncService.swift
+  DinkLink/Services/UserProfileSyncService.swift
+  DinkLink/Services/NetworkMonitor.swift
+  DinkLink/Services/SyncError.swift
+  DinkLink/ContentView.swift               (updated to wire sync)
+  DinkLink/DinkLinkApp.swift               (updated to wire sync)
+  DinkLink/ViewModels/AppViewModel.swift   (network + sync orchestration)
+  supabase/migrations/**
+  DinkLinkTests/**                         (new test files)
+  AgentDocs/**
+
+---
+
+## Step-by-Step Merge Instructions
+
+### STEP 1 — Prepare the merge branch
+
+  git checkout feature/user-data-sync
+  git checkout -b merge/ui-plus-sync
+
+This creates a clean branch off the workspace state. All edits happen here.
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 2 — Bring in repo-only new files (no conflicts)
+
+  git checkout origin/main -- \
+    DinkLink/Views/Components/RankUpCelebrationView.swift \
+    DinkLink/Views/Stats/CurrentSessionView.swift \
+    "DinkLink/Assets.xcassets/badges"
+
+These files don't exist in the workspace branch so there are no conflicts.
+Verify the badge asset catalog paths match what the ProgressionRank.badgeAssetName
+property returns (bronze_paddle_badge, silver_spin_badge, gold_rally_badge,
+diamond_dink_badge — confirmed correct).
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 3 — AppTheme.swift  [TAKE REPO — add dinkBackButton]
+
+Take the repo version in full. It adds the dinkBackButton() ViewModifier which
+LiveGameView and InviteSetupView in the repo depend on.
+
+  git checkout origin/main -- DinkLink/Resources/AppTheme.swift
+
+No workspace-only additions to AppTheme — safe to overwrite.
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 4 — AppModels.swift  [MANUAL MERGE — add badgeAssetName to workspace version]
+
+The workspace version is the superset (has sync fields + new @Models).
+The only thing to add from the repo is the badgeAssetName computed property
+on ProgressionRank.
+
+  In ProgressionRank, after the existing `badgeTitle` computed property, add:
+
+    var badgeAssetName: String {
+        switch self {
+        case .bronze:  return "bronze_paddle_badge"
+        case .silver:  return "silver_spin_badge"
+        case .gold:    return "gold_rally_badge"
+        case .diamond: return "diamond_dink_badge"
+        }
+    }
+
+Keep all workspace sync fields, SavedLocation, and SyncQueueItem untouched.
+Do NOT take the repo's AppModels — it is missing all workspace additions.
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 5 — AuthService.swift  [MANUAL MERGE — workspace base + repo improvements]
+
+The workspace version adds hasValidAccessToken and refreshSessionIfNeeded.
+The repo version renamed decodeErrorMessage → friendlyError and improved
+the error body decoding (error_code + msg fields).
+
+Starting point: workspace version.
+Changes to apply from the repo:
+  a) Replace decodeErrorMessage(from:) with friendlyError(from:) using
+     the repo's expanded SupabaseErrorBody struct (error_code, msg fields).
+  b) In validate(response:data:), update the call site from
+     decodeErrorMessage(from:) → friendlyError(from:).
+  c) In loadStoredSession(), apply the repo's comment block explaining
+     the refresh-on-launch strategy (cosmetic — the logic is already there).
+
+Do NOT take the repo AuthService directly — it is missing hasValidAccessToken
+and refreshSessionIfNeeded which AppViewModel.startSync() depends on.
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 6 — OnboardingViewModel.swift  [TAKE REPO]
+
+The repo adds signInReturningUser(), canUseReturningUser, and goBack()
+which drive the new login UI. The workspace has no ViewModel-only changes
+to OnboardingViewModel — it only added fields to the @Model layer.
+
+  git checkout origin/main -- DinkLink/ViewModels/OnboardingViewModel.swift
+
+The repo's OnboardingViewModel already reads from the existing
+PlayerProfile, PersistenceServiceProtocol, and SupabaseAuthService
+interfaces — no additional wiring needed.
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 7 — OnboardingFlowView.swift  [TAKE REPO]
+
+The repo's version has the improved UI:
+  - Centered content via GeometryReader + ScrollView
+  - "Returning player?" card on the intro step with email/password + Sign In button
+  - Back button in the profile step
+  - Cleaner horizontal padding (28pt)
+  - authStatusMessage displayed centrally
+
+The workspace version has no UI-specific changes to OnboardingFlowView.
+
+  git checkout origin/main -- DinkLink/Views/Onboarding/OnboardingFlowView.swift
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 8 — LiveGameViewModel.swift  [WORKSPACE BASE — remove repo-removed features]
+
+Decision: workspace is the base (has ownerProfileID + onSessionSaved).
+The repo removed: liveSwingSpeeds, isPaused, togglePause(), latestXPAwardResult,
+dismissRankUpCelebration(). These are also absent from the workspace version
+already — the workspace already removed them. Confirm by checking both versions:
+
+  diff <(git show origin/main:DinkLink/ViewModels/LiveGameViewModel.swift) \
+       DinkLink/ViewModels/LiveGameViewModel.swift
+
+If any of the removed properties still exist in the workspace, remove them.
+No file checkout needed if workspace is already clean on this.
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 9 — LiveGameView.swift  [MANUAL MERGE — workspace base + repo UI additions]
+
+Both versions removed the pause button and RankUpCelebrationView overlay.
+The repo adds:
+  a) .dinkBackButton() modifier on the NavigationStack
+  b) A new liveHud section (LazyVGrid live stats tiles above sessionControls)
+  c) The live stats tile helper views (statTile, modeSpecificLiveStat)
+
+Starting point: workspace version.
+Changes to apply from the repo:
+  a) Add .dinkBackButton() to the ZStack modifiers.
+  b) Add `liveHud` before `sessionControls` in the ScrollView VStack.
+  c) Copy the private liveHud, statTile, and modeSpecificLiveStat computed
+     properties from the repo version.
+
+The workspace version already passes ownerProfileID and onSessionSaved —
+these should be untouched.
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 10 — InviteSetupView.swift  [WORKSPACE VERSION — already has both params]
+
+The workspace version already has profileID: UUID and onSessionSaved.
+The repo only adds profileID. Workspace is a superset.
+
+Verify .dinkBackButton() from Step 3 is applied here too (repo has it).
+If the workspace version does not have .dinkBackButton(), add it to the
+NavigationStack or pushed screen just as the repo does.
+
+  git show origin/main:DinkLink/Views/Game/InviteSetupView.swift | grep dinkBack
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 11 — HomeView.swift  [MANUAL MERGE — workspace base + repo UI additions]
+
+Workspace has: onSessionSaved callback, profileID forwarding, real sessions only.
+Repo has: CurrentSessionView toolbar button, badge image in progression display,
+         removed sample data fallback (matches workspace), slightly different
+         tab / displaySessions logic.
+
+Starting point: workspace version.
+Changes to apply from the repo:
+  a) Add the toolbar ToolbarItem with the figure.pickleball button that pushes
+     CurrentSessionView (repo lines ~142-153 in HomeView.swift).
+  b) Add the @State private var showCurrentSession = false.
+  c) Add .navigationDestination(isPresented: $showCurrentSession) routing to
+     CurrentSessionView, passing profile, bluetoothService, authService,
+     persistenceService.
+  d) In the homeProgression / rank area, add the badge image display from the
+     repo (Image(displayedProgression.rank.badgeAssetName) resizable 64x64).
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 12 — ProfileView.swift  [MANUAL MERGE — add badge image]
+
+Workspace has no ProfileView-specific changes.
+Repo adds the badge image (64×64 asset) next to the rank title in progressionCard.
+
+  git checkout origin/main -- DinkLink/Views/Home/ProfileView.swift
+
+This is safe — the workspace made no ProfileView changes. The one dependency
+(rank.badgeAssetName) is added to AppModels in Step 4.
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 13 — CurrentSessionView.swift  [NEEDS OWNERPROFILEID + ONSESSIONSAVED WIRING]
+
+CurrentSessionView was added in the repo without knowing about the workspace's
+ownerProfileID requirement on LiveGameViewModel and the onSessionSaved callback.
+
+After copying the file in Step 2, update CurrentSessionView to:
+  a) Accept an onSessionSaved: (() -> Void)? parameter.
+  b) When constructing LiveGameViewModel inside CurrentSessionView, pass:
+       ownerProfileID: profile.id
+       onSessionSaved: onSessionSaved
+  c) Pass onSessionSaved through from HomeView's toolbar destination.
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 14 — Xcode project file (project.pbxproj)
+
+Both branches added new files to the project. The safest approach:
+  a) Take the repo's project.pbxproj as the base (it references badge assets,
+     RankUpCelebrationView, CurrentSessionView).
+  b) Manually add references for the workspace-only new service files that
+     won't be referenced yet:
+       - SyncService.swift
+       - GameSessionSyncService.swift
+       - UserProfileSyncService.swift
+       - NetworkMonitor.swift
+       - SyncError.swift
+     Add these under the Services group in Xcode by dragging them in, or by
+     editing the pbxproj to add PBXFileReference + PBXBuildFile + group child
+     entries.
+
+Alternatively, open Xcode after the merge and use Add Files to add any that
+appear as missing references (red text in the project navigator).
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 15 — Verify AppViewModel wiring still compiles
+
+The workspace AppViewModel references:
+  - NetworkMonitor (from NetworkMonitor.swift)
+  - SyncService (from SyncService.swift)
+  - authService.hasValidAccessToken (added to AuthService in Step 5)
+
+After the merge, do a full build to confirm all symbols resolve.
+If hasValidAccessToken is missing (e.g. AuthService was overwritten), re-add it.
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 16 — Build, run, smoke test
+
+  a) Build in Xcode — resolve any lingering symbol errors.
+  b) Run on simulator:
+       - Splash screen animates
+       - Intro step shows "Build My Profile" + "Returning player?" sections
+       - New user flow: name → location → email/pw → paddle sync → home
+       - Returning user flow: email + password → signs in → lands on HomeView
+       - Home toolbar icon (pickleball figure) opens CurrentSessionView
+       - All 4 game modes launch from HomeView cards
+       - InviteSetupView → LiveGameView works with ownerProfileID
+       - Session completes → saved → onSessionSaved fires → profile sync runs
+       - Profile tab shows badge image and rank
+       - Stats tab shows real sessions (no sample data injected)
+  c) Run the test suite: Cmd+U
+       - SyncServiceTests, GameSessionSyncServiceTests,
+         UserProfileSyncServiceTests, ProgressionPersistenceServiceTests
+
+─────────────────────────────────────────────────────────────────────────────
+
+### STEP 17 — Push and PR
+
+  git add -A
+  git commit -m "Merge repo UI (login flow, badges, CurrentSessionView) with workspace Supabase sync layer"
+  git push origin merge/ui-plus-sync
+
+Open a PR from merge/ui-plus-sync → main.
+
+---
+
+## Decision Rationale
+
+  File                       Decision     Reason
+  ─────────────────────────────────────────────────────────────────────────
+  AppTheme.swift             TAKE REPO    Workspace has no AppTheme changes.
+                                          dinkBackButton() is needed by repo UI.
+  OnboardingFlowView.swift   TAKE REPO    New centered/login UI is desired.
+  OnboardingViewModel.swift  TAKE REPO    Adds signInReturningUser, goBack.
+  ProfileView.swift          TAKE REPO    Workspace has no ProfileView changes.
+                                          Repo adds badge image.
+  AppModels.swift            WORKSPACE+  Workspace is superset. Add only
+                             badgeAsset  badgeAssetName from repo.
+  AuthService.swift          WORKSPACE+  Workspace adds token refresh logic.
+                             friendlyErr Add repo's improved error decoding.
+  LiveGameViewModel.swift    WORKSPACE   Both already removed pause/RankUp.
+                                         Workspace adds ownerProfileID.
+  LiveGameView.swift         WORKSPACE+  Workspace base; add repo's liveHud
+                             liveHud     grid and dinkBackButton.
+  InviteSetupView.swift      WORKSPACE   Already has both params.
+  HomeView.swift             WORKSPACE+  Add repo's toolbar + badge display.
+                             toolbar
+  CurrentSessionView.swift   REPO+fix    Add ownerProfileID + onSessionSaved.
+  All new services           WORKSPACE   Core sync infrastructure — no repo
+                                         equivalent exists.
+
+---
+
+## Risk Notes
+
+1. SwiftData schema migration — The workspace added new @Model classes and
+   new properties with defaults. As long as existing field names/types are
+   not renamed, SwiftData performs lightweight migration automatically.
+   DO NOT rename any existing stored property on PlayerProfile or
+   StoredGameSession. Add-only is safe.
+
+2. CurrentSessionView dependency gap — The repo's CurrentSessionView was
+   built before ownerProfileID was introduced. Step 13 patches this gap.
+   Skipping Step 13 will cause a compile error.
+
+3. Sample data removal — The workspace removed SampleData.sampleSessions
+   as the fallback in HomeView. The repo also removed the displaySessions
+   helper. Both agree: only real sessions should be shown. If sessions are
+   empty, StatsView already has its own emptyStateCard — no change needed.
+
+4. Test target — New test files in DinkLinkTests reference SyncService and
+   fixture helpers. After the Xcode project merge (Step 14), confirm these
+   test files are added to the DinkLinkTests target (not just the main app
+   target) in the pbxproj.

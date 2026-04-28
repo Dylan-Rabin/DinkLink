@@ -288,7 +288,20 @@ struct OnboardingFlowView: View {
                 }
                 .buttonStyle(.bordered)
                 .tint(AppTheme.neon)
+                .foregroundStyle(AppTheme.neon)
                 .disabled(!viewModel.canUseReturningUser)
+
+                if let errorMessage = viewModel.authErrorMessage ?? viewModel.onboardingErrorMessage {
+                    Text(errorMessage)
+                        .dinkBody(12, color: AppTheme.ash)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let statusMessage = viewModel.authStatusMessage {
+                    Text(statusMessage)
+                        .dinkBody(12, color: AppTheme.neon)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 24)
@@ -412,7 +425,13 @@ struct OnboardingFlowView: View {
             .buttonStyle(.borderedProminent)
             .tint(AppTheme.neon)
             .foregroundStyle(AppTheme.ink)
-            .disabled(!viewModel.canContinueFromProfile)
+            .disabled(!viewModel.canContinueFromProfile || viewModel.isAuthenticating)
+
+            if let errorMessage = viewModel.authErrorMessage ?? viewModel.onboardingErrorMessage {
+                Text(errorMessage)
+                    .dinkBody(12, color: AppTheme.ash)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .dinkBody(14, color: AppTheme.smoke)
     }
@@ -518,9 +537,9 @@ struct OnboardingFlowView: View {
 }
 
 private struct PreviewPersistenceService: PersistenceServiceProtocol {
-    func seedSampleSessionsIfNeeded() {}
+    func seedDylanSessions(profileID: UUID) {}
     func fetchSavedSessions() -> [StoredGameSession] { [] }
-    func saveProfile(name: String, locationName: String, dominantArm: DominantArm, skillLevel: SkillLevel, paddleName: String) throws -> PlayerProfile {
+    func saveProfile(name: String, locationName: String, dominantArm: DominantArm, skillLevel: SkillLevel, paddleName: String, supabaseUserID: UUID?) throws -> PlayerProfile {
         PlayerProfile(
             name: name,
             locationName: locationName,

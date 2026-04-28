@@ -180,6 +180,7 @@ struct SessionDraft {
     var longestStreak: Int
     var totalValidVolleys: Int
     var bestRallyLength: Int
+    var ownerProfileID: UUID?
 }
 
 struct PublicComment: Identifiable, Codable, Hashable {
@@ -328,6 +329,16 @@ final class PlayerProfile {
     var skillLevelRawValue: String
     var syncedPaddleName: String
     var completedOnboarding: Bool
+    // Phase 1 — Supabase sync
+    var supabaseProfileSynced: Bool = false
+    // Phase 3 — home location cache
+    var homeLocationLabel: String = ""
+    // Phase 6 — GPN integration
+    var gpnUsername: String = ""
+    // MVP — daily-play streak tracking
+    var currentStreak: Int = 0
+    var longestDailyStreak: Int = 0
+    var lastActiveDate: Date? = nil
 
     init(
         id: UUID = UUID(),
@@ -383,6 +394,14 @@ final class StoredGameSession {
     var longestStreak: Int
     var totalValidVolleys: Int
     var bestRallyLength: Int
+    // Phase 2 — Supabase sync
+    var remoteID: UUID? = nil
+    var isDirty: Bool = true
+    // MVP — challenge and Pickle Cup flags
+    var isChallenge: Bool = false
+    var isPickleCupWin: Bool = false
+    // Owner scoping — prevents sessions from leaking across profiles
+    var ownerProfileID: UUID?
 
     init(
         id: UUID = UUID(),
@@ -400,7 +419,8 @@ final class StoredGameSession {
         winnerName: String,
         longestStreak: Int,
         totalValidVolleys: Int,
-        bestRallyLength: Int
+        bestRallyLength: Int,
+        ownerProfileID: UUID? = nil
     ) {
         self.id = id
         modeRawValue = mode.rawValue
@@ -418,9 +438,207 @@ final class StoredGameSession {
         self.longestStreak = longestStreak
         self.totalValidVolleys = totalValidVolleys
         self.bestRallyLength = bestRallyLength
+        self.ownerProfileID = ownerProfileID
     }
 
     var mode: GameMode {
         GameMode(rawValue: modeRawValue) ?? .dinkSinks
+    }
+}
+
+// MARK: - Phase 3: Saved Locations
+
+@Model
+final class SavedLocation {
+    @Attribute(.unique) var id: UUID
+    var label: String
+    var placeName: String
+    var address: String
+    var latitude: Double
+    var longitude: Double
+    var isHome: Bool
+    var supabaseID: UUID? = nil
+    var isDirty: Bool = true
+    var createdAt: Date
+
+    init(
+        id: UUID = UUID(),
+        label: String,
+        placeName: String,
+        address: String = "",
+        latitude: Double = 0,
+        longitude: Double = 0,
+        isHome: Bool = false,
+        createdAt: Date = .now
+    ) {
+        self.id = id
+        self.label = label
+        self.placeName = placeName
+        self.address = address
+        self.latitude = latitude
+        self.longitude = longitude
+        self.isHome = isHome
+        self.createdAt = createdAt
+    }
+}
+
+// MARK: - Phase 1: Offline Sync Queue
+
+/// Cached GPN profile data for a player. One row per `PlayerProfile`.
+/// Populated by the `sync-gpn-profile` Supabase Edge Function, which handles
+/// GPN OAuth server-side. The app only reads/displays these cached fields.
+@Model
+final class GPNProfile {
+    @Attribute(.unique) var id: UUID
+    /// FK to the owning `PlayerProfile.id`
+    var ownerProfileID: UUID
+
+    // MARK: GPN Identity
+    var gpnUsername: String = ""
+    var gpnDisplayName: String = ""
+    var gpnAvatarUrl: String = ""
+    var gpnProfileUrl: String = ""
+    var gpnLocation: String = ""
+
+    // MARK: Skill Levels (e.g. 3.50)
+    var singlesLevel: Double = 0.0
+    var doublesLevel: Double = 0.0
+    var overallLevel: Double = 0.0
+
+    // MARK: DUPR Rating
+    var duprRating: Double = 0.0
+
+    // MARK: Match Stats
+    var totalMatches: Int = 0
+    var wins: Int = 0
+    var losses: Int = 0
+    var winPercentage: Double = 0.0
+
+    // MARK: Sync metadata
+    var lastSyncedAt: Date?
+    var isDirty: Bool = false
+    var createdAt: Date
+
+    init(ownerProfileID: UUID) {
+        self.id = UUID()
+        self.ownerProfileID = ownerProfileID
+        self.lastSyncedAt = nil
+        self.createdAt = .now
+    }
+}
+
+// MARK: - GPN Service wire types
+
+/// Request body sent to the `sync-gpn-profile` Supabase Edge Function.
+/// On the first link both fields are populated. For subsequent refresh syncs
+/// both fields are nil and the Edge Function uses the cached server-side
+/// session to refresh data.
+struct GPNSyncRequest: Encodable {
+    let gpnUsername: String?
+    let gpnPassword: String?
+
+    enum CodingKeys: String, CodingKey {
+        case gpnUsername = "gpn_username"
+        case gpnPassword = "gpn_password"
+    }
+}
+
+/// Response returned by the Edge Function after authenticating with GPN and
+/// writing the result to `gpn_profiles` in Supabase.
+struct GPNEdgeFunctionResponse: Decodable {
+    let gpnUsername: String
+    let gpnDisplayName: String?
+    let gpnAvatarUrl: String?
+    let gpnProfileUrl: String?
+    let gpnLocation: String?
+    let singlesLevel: Double?
+    let doublesLevel: Double?
+    let overallLevel: Double?
+    let duprRating: Double?
+    let totalMatches: Int?
+    let wins: Int?
+    let losses: Int?
+    let winPercentage: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case gpnUsername = "gpn_username"
+        case gpnDisplayName = "gpn_display_name"
+        case gpnAvatarUrl = "gpn_avatar_url"
+        case gpnProfileUrl = "gpn_profile_url"
+        case gpnLocation = "gpn_location"
+        case singlesLevel = "singles_level"
+        case doublesLevel = "doubles_level"
+        case overallLevel = "overall_level"
+        case duprRating = "dupr_rating"
+        case totalMatches = "total_matches"
+        case wins
+        case losses
+        case winPercentage = "win_percentage"
+    }
+}
+
+/// Row shape returned by `GET /rest/v1/gpn_profiles`.
+struct RemoteGPNProfile: Decodable {
+    let gpnUsername: String
+    let gpnDisplayName: String?
+    let gpnAvatarUrl: String?
+    let gpnProfileUrl: String?
+    let gpnLocation: String?
+    let singlesLevel: Double?
+    let doublesLevel: Double?
+    let overallLevel: Double?
+    let duprRating: Double?
+    let totalMatches: Int?
+    let wins: Int?
+    let losses: Int?
+    let winPercentage: Double?
+    let lastSyncedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case gpnUsername = "gpn_username"
+        case gpnDisplayName = "gpn_display_name"
+        case gpnAvatarUrl = "gpn_avatar_url"
+        case gpnProfileUrl = "gpn_profile_url"
+        case gpnLocation = "gpn_location"
+        case singlesLevel = "singles_level"
+        case doublesLevel = "doubles_level"
+        case overallLevel = "overall_level"
+        case duprRating = "dupr_rating"
+        case totalMatches = "total_matches"
+        case wins
+        case losses
+        case winPercentage = "win_percentage"
+        case lastSyncedAt = "last_synced_at"
+    }
+}
+
+/// Serialised write queue for Supabase-bound operations when the device is offline.
+/// SyncService drains this queue oldest-first when connectivity is restored.
+@Model
+final class SyncQueueItem {
+    @Attribute(.unique) var id: UUID
+    /// Operation type. Allowed: upsert_profile | save_session | upsert_location | award_badge | xp_events
+    var operation: String
+    /// Target Supabase table name, e.g. "game_sessions"
+    var tableName: String
+    /// JSON-encoded request body to replay against the Supabase REST endpoint
+    var payload: Data
+    var createdAt: Date
+    var retryCount: Int
+
+    init(
+        id: UUID = UUID(),
+        operation: String,
+        tableName: String,
+        payload: Data,
+        createdAt: Date = .now,
+        retryCount: Int = 0
+    ) {
+        self.id = id
+        self.operation = operation
+        self.tableName = tableName
+        self.payload = payload
+        self.createdAt = createdAt
+        self.retryCount = retryCount
     }
 }

@@ -295,4 +295,100 @@ struct LiveGameView: View {
         let remainingSeconds = max(seconds, 0) % 60
         return String(format: "%d:%02d", minutes, remainingSeconds)
     }
+
+    // MARK: - Live HUD
+
+    private var liveHud: some View {
+        let stats = viewModel.overallStats
+
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Live Stats")
+                    .dinkHeading(18, color: AppTheme.smoke)
+
+                Spacer()
+
+                Text(viewModel.activePlayerName)
+                    .dinkBody(12, color: AppTheme.ash)
+            }
+
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 10),
+                GridItem(.flexible(), spacing: 10)
+            ], spacing: 10) {
+                statTile(title: "Avg Swing", value: "\(formatted(stats.average)) mph")
+                statTile(title: "Max Swing", value: "\(formatted(stats.max)) mph")
+                statTile(title: "Sweet Spot", value: "\(formatted(stats.sweetSpot, decimals: 0))%")
+                statTile(title: "Hits", value: "\(stats.totalHits)")
+            }
+
+            modeSpecificLiveStat
+        }
+        .padding(18)
+        .background(
+            LinearGradient(
+                colors: [AppTheme.steel, AppTheme.graphite],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private var modeSpecificLiveStat: some View {
+        Group {
+            switch viewModel.activeMode {
+            case .dinkSinks:
+                statRow(
+                    title: "Best Streak",
+                    value: "\(viewModel.playerMetrics[viewModel.activePlayerIndex].dinkBestStreak)"
+                )
+            case .volleyWallies:
+                statRow(
+                    title: "Valid Volleys",
+                    value: "\(viewModel.playerMetrics[viewModel.activePlayerIndex].validVolleys)"
+                )
+            case .theRealDeal:
+                statRow(
+                    title: "Rally Hits",
+                    value: "\(viewModel.currentRallyHits)"
+                )
+            case .pickleCup:
+                statRow(
+                    title: "Cup Stage",
+                    value: "\(viewModel.currentCupStageIndex + 1)/3"
+                )
+            }
+        }
+    }
+
+    private func statTile(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title.uppercased())
+                .dinkBody(10, color: AppTheme.ash)
+
+            Text(value)
+                .dinkHeading(16, color: AppTheme.neon)
+        }
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+        .padding(12)
+        .background(AppTheme.graphite.opacity(0.9))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func statRow(title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+                .dinkBody(13, color: AppTheme.ash)
+
+            Spacer()
+
+            Text(value)
+                .dinkBody(14, color: AppTheme.neon)
+        }
+    }
 }

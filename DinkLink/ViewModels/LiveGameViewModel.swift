@@ -37,6 +37,10 @@ final class LiveGameViewModel {
     private var timer: Timer?
     @ObservationIgnored
     private var hasSaved = false
+    @ObservationIgnored
+    private let onSessionSaved: (() -> Void)?
+    @ObservationIgnored
+    private let ownerProfileID: UUID
 
     init(
         mode: GameMode,
@@ -44,13 +48,17 @@ final class LiveGameViewModel {
         bluetoothService: BluetoothServiceProtocol,
         persistenceService: PersistenceServiceProtocol,
         authService: SupabaseAuthService,
-        progressionPersistenceService: ProgressionPersistenceServiceProtocol
+        progressionPersistenceService: ProgressionPersistenceServiceProtocol,
+        ownerProfileID: UUID,
+        onSessionSaved: (() -> Void)? = nil
     ) {
         self.mode = mode
         self.bluetoothService = bluetoothService
         self.persistenceService = persistenceService
         self.authService = authService
         self.progressionPersistenceService = progressionPersistenceService
+        self.ownerProfileID = ownerProfileID
+        self.onSessionSaved = onSessionSaved
         sessionStartDate = .now
         playerMetrics = players.map(PlayerGameMetrics.init)
         cupWins = Array(repeating: 0, count: players.count)
@@ -284,9 +292,12 @@ final class LiveGameViewModel {
                 winnerName: sessionWinner,
                 longestStreak: longestStreak,
                 totalValidVolleys: totalVolleys,
-                bestRallyLength: bestRally
+                bestRallyLength: bestRally,
+                ownerProfileID: ownerProfileID
             )
         )
+
+        onSessionSaved?()
 
         syncProgressionIfPossible(
             sessionEndDate: sessionEndDate,
