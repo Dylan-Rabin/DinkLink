@@ -480,6 +480,134 @@ final class SavedLocation {
 
 // MARK: - Phase 1: Offline Sync Queue
 
+/// Cached GPN profile data for a player. One row per `PlayerProfile`.
+/// Populated by the `sync-gpn-profile` Supabase Edge Function, which handles
+/// GPN OAuth server-side. The app only reads/displays these cached fields.
+@Model
+final class GPNProfile {
+    @Attribute(.unique) var id: UUID
+    /// FK to the owning `PlayerProfile.id`
+    var ownerProfileID: UUID
+
+    // MARK: GPN Identity
+    var gpnUsername: String = ""
+    var gpnDisplayName: String = ""
+    var gpnAvatarUrl: String = ""
+    var gpnProfileUrl: String = ""
+    var gpnLocation: String = ""
+
+    // MARK: Skill Levels (e.g. 3.50)
+    var singlesLevel: Double = 0.0
+    var doublesLevel: Double = 0.0
+    var overallLevel: Double = 0.0
+
+    // MARK: DUPR Rating
+    var duprRating: Double = 0.0
+
+    // MARK: Match Stats
+    var totalMatches: Int = 0
+    var wins: Int = 0
+    var losses: Int = 0
+    var winPercentage: Double = 0.0
+
+    // MARK: Sync metadata
+    var lastSyncedAt: Date?
+    var isDirty: Bool = false
+    var createdAt: Date
+
+    init(ownerProfileID: UUID) {
+        self.id = UUID()
+        self.ownerProfileID = ownerProfileID
+        self.lastSyncedAt = nil
+        self.createdAt = .now
+    }
+}
+
+// MARK: - GPN Service wire types
+
+/// Request body sent to the `sync-gpn-profile` Supabase Edge Function.
+/// On the first link both fields are populated. For subsequent refresh syncs
+/// both fields are nil and the Edge Function uses the cached server-side
+/// session to refresh data.
+struct GPNSyncRequest: Encodable {
+    let gpnUsername: String?
+    let gpnPassword: String?
+
+    enum CodingKeys: String, CodingKey {
+        case gpnUsername = "gpn_username"
+        case gpnPassword = "gpn_password"
+    }
+}
+
+/// Response returned by the Edge Function after authenticating with GPN and
+/// writing the result to `gpn_profiles` in Supabase.
+struct GPNEdgeFunctionResponse: Decodable {
+    let gpnUsername: String
+    let gpnDisplayName: String?
+    let gpnAvatarUrl: String?
+    let gpnProfileUrl: String?
+    let gpnLocation: String?
+    let singlesLevel: Double?
+    let doublesLevel: Double?
+    let overallLevel: Double?
+    let duprRating: Double?
+    let totalMatches: Int?
+    let wins: Int?
+    let losses: Int?
+    let winPercentage: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case gpnUsername = "gpn_username"
+        case gpnDisplayName = "gpn_display_name"
+        case gpnAvatarUrl = "gpn_avatar_url"
+        case gpnProfileUrl = "gpn_profile_url"
+        case gpnLocation = "gpn_location"
+        case singlesLevel = "singles_level"
+        case doublesLevel = "doubles_level"
+        case overallLevel = "overall_level"
+        case duprRating = "dupr_rating"
+        case totalMatches = "total_matches"
+        case wins
+        case losses
+        case winPercentage = "win_percentage"
+    }
+}
+
+/// Row shape returned by `GET /rest/v1/gpn_profiles`.
+struct RemoteGPNProfile: Decodable {
+    let gpnUsername: String
+    let gpnDisplayName: String?
+    let gpnAvatarUrl: String?
+    let gpnProfileUrl: String?
+    let gpnLocation: String?
+    let singlesLevel: Double?
+    let doublesLevel: Double?
+    let overallLevel: Double?
+    let duprRating: Double?
+    let totalMatches: Int?
+    let wins: Int?
+    let losses: Int?
+    let winPercentage: Double?
+    let lastSyncedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case gpnUsername = "gpn_username"
+        case gpnDisplayName = "gpn_display_name"
+        case gpnAvatarUrl = "gpn_avatar_url"
+        case gpnProfileUrl = "gpn_profile_url"
+        case gpnLocation = "gpn_location"
+        case singlesLevel = "singles_level"
+        case doublesLevel = "doubles_level"
+        case overallLevel = "overall_level"
+        case duprRating = "dupr_rating"
+        case totalMatches = "total_matches"
+        case wins
+        case losses
+        case winPercentage = "win_percentage"
+        case lastSyncedAt = "last_synced_at"
+    }
+}
+
 /// Serialised write queue for Supabase-bound operations when the device is offline.
 /// SyncService drains this queue oldest-first when connectivity is restored.
 @Model

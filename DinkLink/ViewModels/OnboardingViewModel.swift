@@ -34,17 +34,21 @@ final class OnboardingViewModel {
     private let authService: SupabaseAuthService
     @ObservationIgnored
     private let existingProfile: PlayerProfile?
+    @ObservationIgnored
+    private let profileSyncService: UserProfileSyncService
 
     init(
         bluetoothService: BluetoothServiceProtocol,
         persistenceService: PersistenceServiceProtocol,
         authService: SupabaseAuthService,
-        existingProfile: PlayerProfile?
+        existingProfile: PlayerProfile?,
+        profileSyncService: UserProfileSyncService = UserProfileSyncService()
     ) {
         self.bluetoothService = bluetoothService
         self.persistenceService = persistenceService
         self.authService = authService
         self.existingProfile = existingProfile
+        self.profileSyncService = profileSyncService
         playerName = existingProfile?.name ?? ""
         playerLocation = existingProfile?.locationName ?? ""
         dominantArm = existingProfile?.dominantArm ?? .right
@@ -54,8 +58,7 @@ final class OnboardingViewModel {
 
     var canContinueFromProfile: Bool {
         !playerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !playerLocation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !authService.isAuthenticating
+            !playerLocation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var canUseReturningUser: Bool {
@@ -64,24 +67,16 @@ final class OnboardingViewModel {
             !authService.isAuthenticating
     }
 
-    var isAuthenticated: Bool {
-        authService.isAuthenticated
-    }
-
     var isAuthenticating: Bool {
         authService.isAuthenticating
-    }
-
-    var authStatusMessage: String? {
-        authService.authStatusMessage
     }
 
     var authErrorMessage: String? {
         authService.authErrorMessage
     }
 
-    var authenticatedEmail: String? {
-        authService.currentUserEmail
+    var authStatusMessage: String? {
+        authService.authStatusMessage
     }
 
     var selectedDevice: PaddleDevice? {
@@ -112,11 +107,6 @@ final class OnboardingViewModel {
         currentStep = previous
     }
 
-    func signUpWithEmail() async {
-        await authService.signUp(email: authEmail, password: authPassword)
-        authEmail = authService.currentUserEmail ?? authEmail
-    }
-
     func signInWithEmail() async {
         await authService.signIn(email: authEmail, password: authPassword)
         authEmail = authService.currentUserEmail ?? authEmail
@@ -125,17 +115,35 @@ final class OnboardingViewModel {
     func continueFromProfile() async {
         onboardingErrorMessage = nil
 
-        if hasPartialAuthCredentials {
-            onboardingErrorMessage = "Enter both email and password, or leave both blank."
+        // If the user is already signed in (e.g. returning here after sign-in
+        // bumped them to fill out missing local fields), no account work needed.
+        if authService.isAuthenticated {
+            advance()
             return
         }
 
-        if hasAuthCredentials, !authService.isAuthenticated {
-            await signUpWithEmail()
+        // Otherwise, register a Supabase account with the email/password the
+        // user typed in this step. If the email already exists, fall back to
+        // signing in so people can recover from a half-finished signup.
+        let email = authEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let password = authPassword.trimmingCharacters(in: .whitespacesAndNewlines)
 
-            if authService.authErrorMessage != nil {
-                return
-            }
+        guard !email.isEmpty, !password.isEmpty else {
+            onboardingErrorMessage = "Enter an email and password to create your account."
+            return
+        }
+
+        await authService.signUp(email: email, password: password)
+
+        // Supabase returns "user_already_exists" when the email is taken — try sign-in.
+        if !authService.isAuthenticated,
+           authService.authErrorMessage?.contains("already exists") == true {
+            await authService.signIn(email: email, password: password)
+        }
+
+        guard authService.isAuthenticated else {
+            // signUp / signIn already populated authErrorMessage — surface it.
+            return
         }
 
         advance()
@@ -144,38 +152,70 @@ final class OnboardingViewModel {
     func signInReturningUser() async -> PlayerProfile? {
         await signInWithEmail()
 
-        guard authService.isAuthenticated else {
+        guard authService.isAuthenticated,
+              let userID = authService.currentUserID,
+              let accessToken = authService.accessToken
+        else {
             return nil
         }
 
-        guard let existingProfile else {
-            onboardingErrorMessage = "Signed in. Build your profile to finish setup on this device."
-            currentStep = .playerProfile
-            return nil
+        // 1. Try to pull the user's profile from Supabase (returning users on a new device).
+        var remoteProfile: RemoteUserProfile?
+        do {
+            remoteProfile = try await profileSyncService.fetchProfile(
+                userID: userID,
+                accessToken: accessToken
+            )
+        } catch {
+            // Network failure is fine — fall back to local profile if there is one.
         }
 
-        playerName = existingProfile.name
-        playerLocation = existingProfile.locationName
-        dominantArm = existingProfile.dominantArm
-        skillLevel = existingProfile.skillLevel
+        // 2. Decide which fields to save locally. Order of preference:
+        //    remote profile > existing local profile > what's already typed in the form.
+        if let remote = remoteProfile, !remote.displayName.isEmpty {
+            playerName     = remote.displayName
+            playerLocation = remote.homeCity
+            return saveProfile(
+                paddleName: remote.paddleName.isEmpty
+                    ? (existingProfile?.syncedPaddleName ?? "Mock Paddle")
+                    : remote.paddleName,
+                supabaseUserID: userID
+            )
+        }
 
-        return saveProfile(paddleName: existingProfile.syncedPaddleName)
+        if let existingProfile {
+            playerName     = existingProfile.name
+            playerLocation = existingProfile.locationName
+            dominantArm    = existingProfile.dominantArm
+            skillLevel     = existingProfile.skillLevel
+            return saveProfile(
+                paddleName: existingProfile.syncedPaddleName,
+                supabaseUserID: userID
+            )
+        }
+
+        // 3. No remote profile, no local profile → finish onboarding by hand.
+        onboardingErrorMessage = "Signed in. Build your profile to finish setup on this device."
+        currentStep = .playerProfile
+        return nil
     }
 
     func completeOnboarding() -> PlayerProfile? {
         saveProfile(
-            paddleName: bluetoothService.connectedDevice?.name ?? selectedDevice?.name ?? "Mock Paddle"
+            paddleName: bluetoothService.connectedDevice?.name ?? selectedDevice?.name ?? "Mock Paddle",
+            supabaseUserID: authService.currentUserID
         )
     }
 
-    private func saveProfile(paddleName: String) -> PlayerProfile? {
+    private func saveProfile(paddleName: String, supabaseUserID: UUID? = nil) -> PlayerProfile? {
         do {
             let profile = try persistenceService.saveProfile(
                 name: playerName,
                 locationName: playerLocation,
                 dominantArm: dominantArm,
                 skillLevel: skillLevel,
-                paddleName: paddleName
+                paddleName: paddleName,
+                supabaseUserID: supabaseUserID
             )
             onboardingErrorMessage = nil
             return profile
@@ -185,14 +225,4 @@ final class OnboardingViewModel {
         }
     }
 
-    private var hasAuthCredentials: Bool {
-        !authEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !authPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var hasPartialAuthCredentials: Bool {
-        let hasEmail = !authEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let hasPassword = !authPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        return hasEmail != hasPassword
-    }
 }

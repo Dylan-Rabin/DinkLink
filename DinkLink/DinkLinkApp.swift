@@ -16,7 +16,8 @@ struct DinkLinkApp: App {
             PlayerProfile.self,
             StoredGameSession.self,
             SavedLocation.self,
-            SyncQueueItem.self
+            SyncQueueItem.self,
+            GPNProfile.self
         ])
     }
 }

@@ -27,14 +27,15 @@ struct GPNService {
     // MARK: - Sync (calls Edge Function)
 
     /// Triggers a full GPN sync via the `sync-gpn-profile` Edge Function.
-    /// On success the Edge Function writes to `gpn_profiles` in Supabase and
-    /// returns the parsed GPN data for immediate local caching.
+    /// Pass `gpnUsername` and `gpnPassword` only on the first link. For
+    /// subsequent refreshes pass `nil` for both — the Edge Function will
+    /// reuse the cached server-side session.
     func syncProfile(
-        gpnUsername: String,
-        gpnPassword: String,
+        gpnUsername: String? = nil,
+        gpnPassword: String? = nil,
         accessToken: String
     ) async throws -> GPNEdgeFunctionResponse {
-        let url = SupabaseConfiguration.baseURL
+        let url = SupabaseConfiguration.projectURL
             .appending(path: "functions/v1/sync-gpn-profile")
 
         var request = URLRequest(url: url)

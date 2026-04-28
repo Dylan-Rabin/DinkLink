@@ -31,12 +31,7 @@ struct ContentView: View {
                     bluetoothService: bluetoothService,
                     existingProfile: profiles.first,
                     persistenceService: SwiftDataPersistenceService(context: modelContext),
-                    authService: authService,
-                    onSignedIn: {
-                        // Sync immediately when auth completes mid-onboarding
-                        // so the user_profiles row is created/refreshed right away.
-                        appViewModel.startSync(context: modelContext, authService: authService)
-                    }
+                    authService: authService
                 ) { profile in
                     locallyCompletedProfile = profile
                     // Kick off a sync right after the user finishes onboarding.
@@ -110,17 +105,15 @@ private struct OnboardingRootView: View {
         existingProfile: PlayerProfile?,
         persistenceService: PersistenceServiceProtocol,
         authService: SupabaseAuthService,
-        onSignedIn: @escaping () -> Void,
         onComplete: @escaping (PlayerProfile) -> Void
     ) {
         self.onComplete = onComplete
-        var vm = OnboardingViewModel(
+        let vm = OnboardingViewModel(
             bluetoothService: bluetoothService,
             persistenceService: persistenceService,
             authService: authService,
             existingProfile: existingProfile
         )
-        vm.onSignedIn = onSignedIn
         _viewModel = State(initialValue: vm)
     }
 

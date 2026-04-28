@@ -338,7 +338,7 @@ private struct LiveWorkoutDashboard: View {
 }
 
 private struct PreviewPersistenceService: PersistenceServiceProtocol {
-  func seedSampleSessionsIfNeeded() {}
+  func seedDylanSessions(profileID: UUID) {}
 
   func fetchSavedSessions() -> [StoredGameSession] { [] }
 
@@ -347,7 +347,8 @@ private struct PreviewPersistenceService: PersistenceServiceProtocol {
     locationName: String,
     dominantArm: DominantArm,
     skillLevel: SkillLevel,
-    paddleName: String
+    paddleName: String,
+    supabaseUserID: UUID?
   ) throws -> PlayerProfile {
     PlayerProfile(
       name: name,

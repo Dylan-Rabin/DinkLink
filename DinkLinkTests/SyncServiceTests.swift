@@ -396,7 +396,7 @@ struct SyncErrorTests {
 /// A thin stand-in for SupabaseAuthService that returns a fixed session.
 /// Lives in the test target only — production code never imports this.
 @MainActor
-final class MockAuthService: SupabaseAuthService {
+enum MockAuthService {
     static func makeAuthenticated(
         userID: UUID = UUID(),
         email: String = "test@dinklink.com",

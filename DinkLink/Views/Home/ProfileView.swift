@@ -15,10 +15,13 @@ struct ProfileView: View {
     @State private var dominantArm: DominantArm
     @State private var skillLevel: SkillLevel
     @State private var saveMessage: String?
-    @State private var authEmail = ""
-    @State private var authPassword = ""
     @State private var remoteProgression: UserProgression?
     @State private var progressionErrorMessage: String?
+    @State private var localGPNProfile: GPNProfile?
+    @State private var gpnUsernameInput = ""
+    @State private var gpnPasswordInput = ""
+    @State private var isGPNSyncing = false
+    @State private var gpnError: String?
 
     init(
         profile: PlayerProfile,
@@ -37,7 +40,6 @@ struct ProfileView: View {
         _locationName = State(initialValue: profile.locationName)
         _dominantArm = State(initialValue: profile.dominantArm)
         _skillLevel = State(initialValue: profile.skillLevel)
-        _authEmail = State(initialValue: authService.currentUserEmail ?? "")
     }
 
     var body: some View {
@@ -163,91 +165,7 @@ struct ProfileView: View {
                                 .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
                         )
 
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Comments Account")
-                                .dinkHeading(20, color: AppTheme.smoke)
-
-                            if authService.isAuthenticated {
-                                detailRow(
-                                    title: "Signed In",
-                                    value: authService.currentUserEmail ?? "Authenticated user"
-                                )
-
-                                Button("Sign Out") {
-                                    authService.signOut()
-                                }
-                                .buttonStyle(.bordered)
-                                .tint(AppTheme.neon)
-                            } else {
-                                Text("Sign in or create an account to post public comments on finished matches.")
-                                    .dinkBody(14, color: AppTheme.ash)
-
-                                TextField("Email", text: $authEmail)
-                                    .font(.dinkBody(15))
-                                    .foregroundStyle(AppTheme.ink)
-                                    .tint(AppTheme.ink)
-                                    .keyboardType(.emailAddress)
-                                    .textInputAutocapitalization(.never)
-                                    .autocorrectionDisabled()
-                                    .padding()
-                                    .background(AppTheme.smoke)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                                SecureField("Password", text: $authPassword)
-                                    .font(.dinkBody(15))
-                                    .foregroundStyle(AppTheme.ink)
-                                    .tint(AppTheme.ink)
-                                    .textInputAutocapitalization(.never)
-                                    .autocorrectionDisabled()
-                                    .padding()
-                                    .background(AppTheme.smoke)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                                HStack {
-                                    Button("Sign In") {
-                                        Task {
-                                            await authService.signIn(email: authEmail, password: authPassword)
-                                        }
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .tint(AppTheme.neon)
-                                    .foregroundStyle(AppTheme.ink)
-                                    .disabled(authService.isAuthenticating)
-
-                                    Button("Create Account") {
-                                        Task {
-                                            await authService.signUp(email: authEmail, password: authPassword)
-                                        }
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .tint(AppTheme.neon)
-                                    .disabled(authService.isAuthenticating)
-                                }
-                            }
-
-                            if authService.isAuthenticating {
-                                ProgressView()
-                                    .tint(AppTheme.neon)
-                            }
-
-                            if let authStatusMessage = authService.authStatusMessage {
-                                Text(authStatusMessage)
-                                    .dinkBody(12, color: AppTheme.neon)
-                            }
-
-                            if let authErrorMessage = authService.authErrorMessage {
-                                Text(authErrorMessage)
-                                    .dinkBody(12, color: AppTheme.ash)
-                            }
-                        }
-                        .padding(20)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(AppTheme.steel.opacity(0.92))
-                        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                                .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
-                        )
+                        gpnCard
 
                         Button("Log Out") {
                             logOut()
@@ -264,6 +182,7 @@ struct ProfileView: View {
         }
         .task(id: authService.currentUserID?.uuidString) {
             await loadRemoteProgression()
+            loadLocalGPN()
         }
     }
 
@@ -385,6 +304,184 @@ struct ProfileView: View {
     @MainActor
     private func logOut() {
         onLogOut(profile)
+    }
+
+    // MARK: - GPN Card
+
+    private var gpnCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Global Pickleball Network")
+                    .dinkHeading(20, color: AppTheme.smoke)
+                Spacer()
+                if let synced = localGPNProfile?.lastSyncedAt {
+                    Text("Synced \(synced, style: .relative) ago")
+                        .dinkBody(11, color: AppTheme.ash)
+                }
+            }
+
+            if let gpn = localGPNProfile, !gpn.gpnUsername.isEmpty {
+                // Connected state
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(gpn.gpnDisplayName.isEmpty ? gpn.gpnUsername : gpn.gpnDisplayName)
+                            .dinkBody(15, color: AppTheme.smoke)
+                        if !gpn.gpnLocation.isEmpty {
+                            Text(gpn.gpnLocation)
+                                .dinkBody(11, color: AppTheme.ash)
+                        }
+                    }
+                    Spacer()
+                    if !gpn.gpnProfileUrl.isEmpty, let url = URL(string: gpn.gpnProfileUrl) {
+                        Link("View on GPN", destination: url)
+                            .font(.dinkBody(12))
+                            .foregroundStyle(AppTheme.neon)
+                    }
+                }
+
+                // Skill levels
+                HStack(spacing: 12) {
+                    if gpn.singlesLevel > 0 {
+                        statChip(title: "Singles", value: String(format: "%.2f", gpn.singlesLevel))
+                    }
+                    if gpn.doublesLevel > 0 {
+                        statChip(title: "Doubles", value: String(format: "%.2f", gpn.doublesLevel))
+                    }
+                    if gpn.duprRating > 0 {
+                        statChip(title: "DUPR", value: String(format: "%.3f", gpn.duprRating))
+                    }
+                }
+
+                // Match stats
+                if gpn.totalMatches > 0 {
+                    HStack(spacing: 12) {
+                        statChip(title: "Matches", value: "\(gpn.totalMatches)")
+                        statChip(title: "Wins", value: "\(gpn.wins)")
+                        statChip(title: "Win %", value: String(format: "%.1f%%", gpn.winPercentage))
+                    }
+                }
+
+                Button(isGPNSyncing ? "Syncing..." : "Re-sync GPN") {
+                    Task { await syncGPN() }
+                }
+                .buttonStyle(.bordered)
+                .tint(AppTheme.neon)
+                .disabled(isGPNSyncing)
+            } else {
+                // Not yet connected
+                Text("Link your GPN account to display your skill level and DUPR rating.")
+                    .dinkBody(13, color: AppTheme.ash)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                TextField("GPN Username", text: $gpnUsernameInput)
+                    .font(.dinkBody(14))
+                    .foregroundStyle(AppTheme.ink)
+                    .tint(AppTheme.ink)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(12)
+                    .background(AppTheme.smoke)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                SecureField("GPN Password", text: $gpnPasswordInput)
+                    .font(.dinkBody(14))
+                    .foregroundStyle(AppTheme.ink)
+                    .tint(AppTheme.ink)
+                    .padding(12)
+                    .background(AppTheme.smoke)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                Button(isGPNSyncing ? "Connecting..." : "Connect GPN Account") {
+                    Task { await syncGPN() }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(AppTheme.neon)
+                .foregroundStyle(AppTheme.ink)
+                .disabled(gpnUsernameInput.isEmpty || gpnPasswordInput.isEmpty || isGPNSyncing)
+            }
+
+            if isGPNSyncing {
+                ProgressView().tint(AppTheme.neon)
+            }
+
+            if let gpnError {
+                Text(gpnError)
+                    .dinkBody(12, color: AppTheme.ash)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.steel.opacity(0.92))
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    @MainActor
+    private func loadLocalGPN() {
+        let id = profile.id
+        let descriptor = FetchDescriptor<GPNProfile>(
+            predicate: #Predicate { $0.ownerProfileID == id }
+        )
+        localGPNProfile = (try? modelContext.fetch(descriptor))?.first
+        if let gpn = localGPNProfile {
+            gpnUsernameInput = gpn.gpnUsername
+        }
+    }
+
+    @MainActor
+    private func syncGPN() async {
+        guard let accessToken = authService.accessToken else {
+            gpnError = "Sign in to link your GPN account."
+            return
+        }
+        isGPNSyncing = true
+        gpnError = nil
+        let service = GPNService()
+
+        // First-link path: use whatever the user typed in.
+        // Re-sync path: server already has the cached session — send nil/nil
+        // so the Edge Function refreshes data without re-authenticating.
+        let isAlreadyLinked = localGPNProfile?.gpnUsername.isEmpty == false
+        let usernameToSend: String? = isAlreadyLinked && gpnPasswordInput.isEmpty
+            ? nil
+            : (gpnUsernameInput.isEmpty ? localGPNProfile?.gpnUsername : gpnUsernameInput)
+        let passwordToSend: String? = gpnPasswordInput.isEmpty ? nil : gpnPasswordInput
+        do {
+            let response = try await service.syncProfile(
+                gpnUsername: usernameToSend,
+                gpnPassword: passwordToSend,
+                accessToken: accessToken
+            )
+            let gpn = localGPNProfile ?? GPNProfile(ownerProfileID: profile.id)
+            gpn.gpnUsername = response.gpnUsername
+            gpn.gpnDisplayName = response.gpnDisplayName ?? ""
+            gpn.gpnAvatarUrl = response.gpnAvatarUrl ?? ""
+            gpn.gpnProfileUrl = response.gpnProfileUrl ?? ""
+            gpn.gpnLocation = response.gpnLocation ?? ""
+            gpn.singlesLevel = response.singlesLevel ?? 0
+            gpn.doublesLevel = response.doublesLevel ?? 0
+            gpn.overallLevel = response.overallLevel ?? 0
+            gpn.duprRating = response.duprRating ?? 0
+            gpn.totalMatches = response.totalMatches ?? 0
+            gpn.wins = response.wins ?? 0
+            gpn.losses = response.losses ?? 0
+            gpn.winPercentage = response.winPercentage ?? 0
+            gpn.lastSyncedAt = .now
+            gpn.isDirty = false
+            if localGPNProfile == nil {
+                modelContext.insert(gpn)
+            }
+            localGPNProfile = gpn
+            profile.gpnUsername = response.gpnUsername
+            profile.supabaseProfileSynced = false
+            gpnPasswordInput = ""
+        } catch {
+            gpnError = "Could not connect to GPN. Check your username and password."
+        }
+        isGPNSyncing = false
     }
 
     @MainActor

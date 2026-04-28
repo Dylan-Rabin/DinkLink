@@ -5,7 +5,7 @@ import Foundation
 final class MockURLProtocol: URLProtocol {
 
     // Per-request handler: receives the URLRequest, returns (Data, HTTPURLResponse).
-    static var requestHandler: ((URLRequest) throws -> (Data, HTTPURLResponse))?
+    static var requestHandler: ((URLRequest) async throws -> (Data, HTTPURLResponse))?
 
     // Captured requests for assertion in tests.
     static var capturedRequests: [URLRequest] = []
@@ -20,13 +20,17 @@ final class MockURLProtocol: URLProtocol {
             client?.urlProtocolDidFinishLoading(self)
             return
         }
-        do {
-            let (data, response) = try handler(request)
-            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: data)
-            client?.urlProtocolDidFinishLoading(self)
-        } catch {
-            client?.urlProtocol(self, didFailWithError: error)
+        let req = request
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let (data, response) = try await handler(req)
+                self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                self.client?.urlProtocol(self, didLoad: data)
+                self.client?.urlProtocolDidFinishLoading(self)
+            } catch {
+                self.client?.urlProtocol(self, didFailWithError: error)
+            }
         }
     }
 

@@ -288,7 +288,20 @@ struct OnboardingFlowView: View {
                 }
                 .buttonStyle(.bordered)
                 .tint(AppTheme.neon)
+                .foregroundStyle(AppTheme.neon)
                 .disabled(!viewModel.canUseReturningUser)
+
+                if let errorMessage = viewModel.authErrorMessage ?? viewModel.onboardingErrorMessage {
+                    Text(errorMessage)
+                        .dinkBody(12, color: AppTheme.ash)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let statusMessage = viewModel.authStatusMessage {
+                    Text(statusMessage)
+                        .dinkBody(12, color: AppTheme.neon)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 24)
@@ -341,9 +354,9 @@ struct OnboardingFlowView: View {
                 .background(AppTheme.smoke)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            // Text("Email and password are optional. Add them now if you want to post and like comments after onboarding.")
-              //  .dinkBody(12, color: AppTheme.ash)
-
+            // New users register a Supabase account here so their profile
+            // syncs across devices and they can sign in later from the
+            // "Returning player?" card.
             TextField("Email", text: $viewModel.authEmail)
                 .font(.dinkBody(14))
                 .foregroundStyle(AppTheme.ink)
@@ -355,7 +368,7 @@ struct OnboardingFlowView: View {
                 .background(AppTheme.smoke)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            SecureField("Password", text: $viewModel.authPassword)
+            SecureField("Password (min 6 characters)", text: $viewModel.authPassword)
                 .font(.dinkBody(14))
                 .foregroundStyle(AppTheme.ink)
                 .tint(AppTheme.ink)
@@ -364,21 +377,6 @@ struct OnboardingFlowView: View {
                 .padding(12)
                 .background(AppTheme.smoke)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-            if viewModel.isAuthenticated {
-                Text("Signed in as \(viewModel.authenticatedEmail ?? "Authenticated player").")
-                    .dinkBody(12, color: AppTheme.neon)
-            }
-
-            if let authStatusMessage = viewModel.authStatusMessage {
-                Text(authStatusMessage)
-                    .dinkBody(12, color: AppTheme.neon)
-            }
-
-            if let authErrorMessage = viewModel.authErrorMessage {
-                Text(authErrorMessage)
-                    .dinkBody(12, color: AppTheme.ash)
-            }
 
 /*            Picker("Dominant Arm", selection: $viewModel.dominantArm) {
                 ForEach(DominantArm.allCases) { arm in
@@ -412,7 +410,13 @@ struct OnboardingFlowView: View {
             .buttonStyle(.borderedProminent)
             .tint(AppTheme.neon)
             .foregroundStyle(AppTheme.ink)
-            .disabled(!viewModel.canContinueFromProfile)
+            .disabled(!viewModel.canContinueFromProfile || viewModel.isAuthenticating)
+
+            if let errorMessage = viewModel.authErrorMessage ?? viewModel.onboardingErrorMessage {
+                Text(errorMessage)
+                    .dinkBody(12, color: AppTheme.ash)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .dinkBody(14, color: AppTheme.smoke)
     }
@@ -518,9 +522,9 @@ struct OnboardingFlowView: View {
 }
 
 private struct PreviewPersistenceService: PersistenceServiceProtocol {
-    func seedSampleSessionsIfNeeded() {}
+    func seedDylanSessions(profileID: UUID) {}
     func fetchSavedSessions() -> [StoredGameSession] { [] }
-    func saveProfile(name: String, locationName: String, dominantArm: DominantArm, skillLevel: SkillLevel, paddleName: String) throws -> PlayerProfile {
+    func saveProfile(name: String, locationName: String, dominantArm: DominantArm, skillLevel: SkillLevel, paddleName: String, supabaseUserID: UUID?) throws -> PlayerProfile {
         PlayerProfile(
             name: name,
             locationName: locationName,

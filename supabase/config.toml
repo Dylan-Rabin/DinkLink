@@ -1,8 +1,7 @@
 # supabase/config.toml
 # https://supabase.com/docs/guides/cli/config
 
-[project]
-id = "nrygqwhhzizplpgnxvzk"
+project_id = "nrygqwhhzizplpgnxvzk"
 
 [api]
 enabled = true
@@ -39,6 +38,5 @@ enabled = true
 policy = "oneshot"
 inspector_port = 8083
 
-[[functions]]
-name = "sync-gpn-profile"
+[functions.sync-gpn-profile]
 verify_jwt = true
