@@ -87,25 +87,62 @@ struct PaddleDevice: Identifiable, Codable, Hashable {
     }
 }
 
-struct ShotEvent: Identifiable, Codable, Hashable {
+enum PaddleZone: String, Codable, CaseIterable, Hashable {
+    case top = "TOP"
+    case bottom = "BOTTOM"
+    case left = "LEFT"
+    case right = "RIGHT"
+    case centerFront = "CENTER FRONT"
+    case centerBack = "CENTER BACK"
+    case unknown = "UNKNOWN"
+}
+
+enum PaddleEventType: String, Codable, Hashable {
+    case motion
+    case hit
+}
+
+struct PaddleEvent: Identifiable, Codable, Hashable {
     let id: UUID
     let timestamp: Date
-    let speedMPH: Double
-    let hitSweetSpot: Bool
-    let spinRPM: Double
+    let type: PaddleEventType
+    let zone: PaddleZone?
+    let impactStrength: Int?
+    let motionValue: Double
 
     init(
         id: UUID = UUID(),
         timestamp: Date = .now,
-        speedMPH: Double,
-        hitSweetSpot: Bool,
-        spinRPM: Double
+        type: PaddleEventType,
+        zone: PaddleZone? = nil,
+        impactStrength: Int? = nil,
+        motionValue: Double
     ) {
         self.id = id
         self.timestamp = timestamp
-        self.speedMPH = speedMPH
-        self.hitSweetSpot = hitSweetSpot
-        self.spinRPM = spinRPM
+        self.type = type
+        self.zone = zone
+        self.impactStrength = impactStrength
+        self.motionValue = motionValue
+    }
+}
+
+struct GameMetric: Identifiable, Hashable {
+    let id: UUID
+    let title: String
+    let value: String
+    let subtitle: String?
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        value: String,
+        subtitle: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.value = value
+        self.subtitle = subtitle
     }
 }
 
@@ -132,35 +169,136 @@ struct PlayerGameMetrics: Identifiable, Hashable {
     let id: UUID
     var player: Player
     var totalHits: Int
-    var cumulativeSwingSpeed: Double
-    var maxSwingSpeed: Double
-    var sweetSpotHits: Int
+    var totalMotionEvents: Int
+    var totalImpactStrength: Int
+    var maxImpactStrength: Int
+    var cumulativeMotionValue: Double
+    var topHits: Int
+    var bottomHits: Int
+    var leftHits: Int
+    var rightHits: Int
+    var centerFrontHits: Int
+    var centerBackHits: Int
     var dinkCurrentStreak: Int
     var dinkBestStreak: Int
-    var validVolleys: Int
+    var dinkTotal: Int
+    var dinkPreferredHits: Int
+    var dinkTopHits: Int
+    var dinkBottomHits: Int
+    var dinkLeftHits: Int
+    var dinkRightHits: Int
+    var dinkCenterFrontHits: Int
+    var dinkCenterBackHits: Int
+    var volleyHits: Int
+    var volleyMisses: Int
+    var volleyIntervalSum: Double
+    var volleyIntervalCount: Int
+    var currentRallyLength: Int
+    var longestRally: Int
+    var completedRallyLengthTotal: Int
+    var completedRallies: Int
+    var cleanHits: Int
     var points: Int
 
     init(player: Player) {
         id = UUID()
         self.player = player
         totalHits = 0
-        cumulativeSwingSpeed = 0
-        maxSwingSpeed = 0
-        sweetSpotHits = 0
+        totalMotionEvents = 0
+        totalImpactStrength = 0
+        maxImpactStrength = 0
+        cumulativeMotionValue = 0
+        topHits = 0
+        bottomHits = 0
+        leftHits = 0
+        rightHits = 0
+        centerFrontHits = 0
+        centerBackHits = 0
         dinkCurrentStreak = 0
         dinkBestStreak = 0
-        validVolleys = 0
+        dinkTotal = 0
+        dinkPreferredHits = 0
+        dinkTopHits = 0
+        dinkBottomHits = 0
+        dinkLeftHits = 0
+        dinkRightHits = 0
+        dinkCenterFrontHits = 0
+        dinkCenterBackHits = 0
+        volleyHits = 0
+        volleyMisses = 0
+        volleyIntervalSum = 0
+        volleyIntervalCount = 0
+        currentRallyLength = 0
+        longestRally = 0
+        completedRallyLengthTotal = 0
+        completedRallies = 0
+        cleanHits = 0
         points = 0
     }
 
-    var averageSwingSpeed: Double {
+    var averageImpactStrength: Double {
         guard totalHits > 0 else { return 0 }
-        return cumulativeSwingSpeed / Double(totalHits)
+        return Double(totalImpactStrength) / Double(totalHits)
     }
 
-    var sweetSpotPercentage: Double {
+    var averageMotion: Double {
+        let totalEvents = totalHits + totalMotionEvents
+        guard totalEvents > 0 else { return 0 }
+        return cumulativeMotionValue / Double(totalEvents)
+    }
+
+    var centerHitPercentage: Double {
         guard totalHits > 0 else { return 0 }
-        return (Double(sweetSpotHits) / Double(totalHits)) * 100
+        return (Double(cleanHits) / Double(totalHits)) * 100
+    }
+
+    var controlPercentage: Double {
+        guard totalHits > 0 else { return 0 }
+        return (Double(dinkTotal) / Double(totalHits)) * 100
+    }
+
+    var averageVolleyInterval: Double? {
+        guard volleyIntervalCount > 0 else { return nil }
+        return volleyIntervalSum / Double(volleyIntervalCount)
+    }
+
+    var consistencyScore: Double {
+        guard completedRallies > 0 else { return Double(currentRallyLength) }
+        return Double(completedRallyLengthTotal) / Double(completedRallies)
+    }
+
+    var favoriteDinkZone: PaddleZone {
+        let zones: [(PaddleZone, Int)] = [
+            (.centerFront, dinkCenterFrontHits),
+            (.centerBack, dinkCenterBackHits),
+            (.left, dinkLeftHits),
+            (.right, dinkRightHits),
+            (.top, dinkTopHits),
+            (.bottom, dinkBottomHits)
+        ]
+        return zones.max(by: { $0.1 < $1.1 })?.0 ?? .unknown
+    }
+
+    mutating func resetModeProgress() {
+        dinkCurrentStreak = 0
+        dinkBestStreak = 0
+        dinkTotal = 0
+        dinkPreferredHits = 0
+        dinkTopHits = 0
+        dinkBottomHits = 0
+        dinkLeftHits = 0
+        dinkRightHits = 0
+        dinkCenterFrontHits = 0
+        dinkCenterBackHits = 0
+        volleyHits = 0
+        volleyMisses = 0
+        volleyIntervalSum = 0
+        volleyIntervalCount = 0
+        currentRallyLength = 0
+        longestRally = 0
+        completedRallyLengthTotal = 0
+        completedRallies = 0
+        cleanHits = 0
     }
 }
 
@@ -172,10 +310,17 @@ struct SessionDraft {
     var playerTwoName: String
     var playerOneScore: Int
     var playerTwoScore: Int
-    var averageSwingSpeed: Double
-    var maxSwingSpeed: Double
-    var sweetSpotPercentage: Double
     var totalHits: Int
+    var averageImpactStrength: Double
+    var maxImpactStrength: Int
+    var averageMotion: Double
+    var centerHitPercentage: Double
+    var frontHits: Int
+    var backHits: Int
+    var topHits: Int
+    var bottomHits: Int
+    var leftHits: Int
+    var rightHits: Int
     var winnerName: String
     var longestStreak: Int
     var totalValidVolleys: Int
@@ -288,10 +433,10 @@ struct UserProgression: Codable, Hashable {
 struct SessionStats: Hashable {
     let durationMinutes: Int
     let totalHits: Int
-    let sweetSpotPercentage: Double
+    let centerHitPercentage: Double
     let playedWithFriend: Bool
-    let isNewSwingSpeedPB: Bool
-    let isNewSweetSpotPB: Bool
+    let isNewImpactStrengthPB: Bool
+    let isNewCenterHitPB: Bool
 }
 
 struct XPBreakdownItem: Hashable, Codable {
@@ -386,10 +531,17 @@ final class StoredGameSession {
     var playerTwoName: String
     var playerOneScore: Int
     var playerTwoScore: Int
-    var averageSwingSpeed: Double
-    var maxSwingSpeed: Double
-    var sweetSpotPercentage: Double
     var totalHits: Int
+    var averageImpactStrength: Double
+    var maxImpactStrength: Int
+    var averageMotion: Double
+    var centerHitPercentage: Double
+    var frontHits: Int
+    var backHits: Int
+    var topHits: Int
+    var bottomHits: Int
+    var leftHits: Int
+    var rightHits: Int
     var winnerName: String
     var longestStreak: Int
     var totalValidVolleys: Int
@@ -412,10 +564,17 @@ final class StoredGameSession {
         playerTwoName: String,
         playerOneScore: Int,
         playerTwoScore: Int,
-        averageSwingSpeed: Double,
-        maxSwingSpeed: Double,
-        sweetSpotPercentage: Double,
         totalHits: Int,
+        averageImpactStrength: Double,
+        maxImpactStrength: Int,
+        averageMotion: Double,
+        centerHitPercentage: Double,
+        frontHits: Int,
+        backHits: Int,
+        topHits: Int,
+        bottomHits: Int,
+        leftHits: Int,
+        rightHits: Int,
         winnerName: String,
         longestStreak: Int,
         totalValidVolleys: Int,
@@ -430,10 +589,17 @@ final class StoredGameSession {
         self.playerTwoName = playerTwoName
         self.playerOneScore = playerOneScore
         self.playerTwoScore = playerTwoScore
-        self.averageSwingSpeed = averageSwingSpeed
-        self.maxSwingSpeed = maxSwingSpeed
-        self.sweetSpotPercentage = sweetSpotPercentage
         self.totalHits = totalHits
+        self.averageImpactStrength = averageImpactStrength
+        self.maxImpactStrength = maxImpactStrength
+        self.averageMotion = averageMotion
+        self.centerHitPercentage = centerHitPercentage
+        self.frontHits = frontHits
+        self.backHits = backHits
+        self.topHits = topHits
+        self.bottomHits = bottomHits
+        self.leftHits = leftHits
+        self.rightHits = rightHits
         self.winnerName = winnerName
         self.longestStreak = longestStreak
         self.totalValidVolleys = totalValidVolleys

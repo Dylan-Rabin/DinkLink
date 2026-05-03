@@ -29,7 +29,7 @@ struct ContentView: View {
             } else {
                 OnboardingRootView(
                     bluetoothService: bluetoothService,
-                    existingProfile: profiles.first,
+                    existingProfile: completedProfile,
                     persistenceService: SwiftDataPersistenceService(context: modelContext),
                     authService: authService
                 ) { profile in
@@ -53,7 +53,7 @@ struct ContentView: View {
             appViewModel.startSync(context: modelContext, authService: authService)
         }
         // Re-sync whenever connectivity is restored.
-        .onChange(of: appViewModel.networkMonitor.isConnected) { _, isConnected in
+        .onChange(of: isConnected) { _, isConnected in
             appViewModel.handleConnectivityChange(
                 isConnected: isConnected,
                 context: modelContext,
@@ -77,6 +77,10 @@ struct ContentView: View {
 
     private func sessions(for profile: PlayerProfile) -> [StoredGameSession] {
         allSessions.filter { $0.ownerProfileID == profile.id }
+    }
+
+    private var isConnected: Bool {
+        _appViewModel.wrappedValue.networkMonitor.isConnected
     }
 
 

@@ -86,11 +86,6 @@ struct OnboardingFlowView: View {
                                     }
                                 }
 
-                                if let onboardingErrorMessage = viewModel.onboardingErrorMessage {
-                                    Text(onboardingErrorMessage)
-                                        .dinkBody(12, color: AppTheme.ash)
-                                        .multilineTextAlignment(.center)
-                                }
                             }
                             .frame(maxWidth: 420)
                             .frame(maxWidth: .infinity)
@@ -378,19 +373,9 @@ struct OnboardingFlowView: View {
                 .background(AppTheme.smoke)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            if viewModel.isAuthenticated {
-                Text("Signed in as \(viewModel.authenticatedEmail ?? "Authenticated player").")
-                    .dinkBody(12, color: AppTheme.neon)
-            }
-
             if let authStatusMessage = viewModel.authStatusMessage {
                 Text(authStatusMessage)
                     .dinkBody(12, color: AppTheme.neon)
-            }
-
-            if let authErrorMessage = viewModel.authErrorMessage {
-                Text(authErrorMessage)
-                    .dinkBody(12, color: AppTheme.ash)
             }
 
 /*            Picker("Dominant Arm", selection: $viewModel.dominantArm) {
@@ -497,6 +482,12 @@ struct OnboardingFlowView: View {
                 .foregroundStyle(AppTheme.ink)
                 .disabled(viewModel.selectedDevice == nil || viewModel.isConnecting)
             }
+
+            if let onboardingErrorMessage = viewModel.onboardingErrorMessage {
+                Text(onboardingErrorMessage)
+                    .dinkBody(12, color: AppTheme.ash)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -518,6 +509,12 @@ struct OnboardingFlowView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
+
+            if let onboardingErrorMessage = viewModel.onboardingErrorMessage {
+                Text(onboardingErrorMessage)
+                    .dinkBody(12, color: AppTheme.ash)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }

@@ -39,8 +39,7 @@ final class OnboardingViewModel {
         bluetoothService: BluetoothServiceProtocol,
         persistenceService: PersistenceServiceProtocol,
         authService: SupabaseAuthService,
-        existingProfile: PlayerProfile?,
-        profileSyncService: UserProfileSyncService = UserProfileSyncService()
+        existingProfile: PlayerProfile?
     ) {
         self.bluetoothService = bluetoothService
         self.persistenceService = persistenceService

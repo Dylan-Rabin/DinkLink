@@ -5,31 +5,62 @@ import Observation
 protocol BluetoothServiceProtocol: AnyObject {
     var connectedDevice: PaddleDevice? { get }
     var discoveredDevices: [PaddleDevice] { get }
-    var onShotEvent: ((ShotEvent) -> Void)? { get set }
+    var onPaddleEvent: ((PaddleEvent) -> Void)? { get set }
 
     func scanForDevices() async -> [PaddleDevice]
     func connect(to device: PaddleDevice) async
     func disconnect()
     func startStreaming()
     func stopStreaming()
+    func handleIncomingSerialText(_ text: String)
+}
+
+func parsePaddleLine(_ line: String) -> PaddleEvent? {
+    let cleaned = line.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleaned.isEmpty else { return nil }
+
+    let tokens = cleaned.split(whereSeparator: \.isWhitespace).map(String.init)
+    guard let first = tokens.first?.uppercased() else { return nil }
+
+    switch first {
+    case "MOTION":
+        guard tokens.count >= 2, let motionValue = Double(tokens[1]) else { return nil }
+        return PaddleEvent(type: .motion, motionValue: motionValue)
+
+    case "HIT":
+        guard let motionIndex = tokens.firstIndex(where: { $0.uppercased() == "MOTION" }) else { return nil }
+        guard motionIndex >= 3, motionIndex + 1 < tokens.count else { return nil }
+        guard let impactStrength = Int(tokens[motionIndex - 1]) else { return nil }
+        guard let motionValue = Double(tokens[motionIndex + 1]) else { return nil }
+
+        let zoneText = tokens[1..<(motionIndex - 1)].joined(separator: " ").uppercased()
+        let zone = PaddleZone(rawValue: zoneText) ?? .unknown
+        guard zone != .unknown else { return nil }
+
+        return PaddleEvent(
+            type: .hit,
+            zone: zone,
+            impactStrength: impactStrength,
+            motionValue: motionValue
+        )
+
+    default:
+        return nil
+    }
 }
 
 @MainActor
-// The mock service is also observable so connected-device changes can flow into
-// SwiftUI views using the same Observation system as the view models.
 @Observable
 final class MockBluetoothService: BluetoothServiceProtocol {
     private(set) var connectedDevice: PaddleDevice?
     private(set) var discoveredDevices: [PaddleDevice] = []
 
-    var onShotEvent: ((ShotEvent) -> Void)?
+    var onPaddleEvent: ((PaddleEvent) -> Void)?
 
     @ObservationIgnored
     private var streamTimer: Timer?
 
     func scanForDevices() async -> [PaddleDevice] {
-        // External data seam: a production build would replace this mock list with
-        // real device discovery or an API-backed hardware lookup.
         try? await Task.sleep(for: .milliseconds(600))
         discoveredDevices = [
             PaddleDevice(name: "DL Pro Paddle", batteryLevel: 92),
@@ -72,12 +103,10 @@ final class MockBluetoothService: BluetoothServiceProtocol {
 
     func startStreaming() {
         guard streamTimer == nil else { return }
-        // This timer mimics a live telemetry feed so the UI can react as if
-        // paddle data were arriving continuously from a connected service.
         streamTimer = Timer.scheduledTimer(
             timeInterval: 0.75,
             target: self,
-            selector: #selector(handleMockShot),
+            selector: #selector(handleMockTelemetry),
             userInfo: nil,
             repeats: true
         )
@@ -88,15 +117,32 @@ final class MockBluetoothService: BluetoothServiceProtocol {
         streamTimer = nil
     }
 
-    private static func randomShot() -> ShotEvent {
-        ShotEvent(
-            speedMPH: Double.random(in: 12 ... 48),
-            hitSweetSpot: Int.random(in: 0 ... 100) > 28,
-            spinRPM: Double.random(in: 900 ... 2600)
-        )
+    func handleIncomingSerialText(_ text: String) {
+        text.split(whereSeparator: \.isNewline)
+            .compactMap { parsePaddleLine(String($0)) }
+            .forEach { onPaddleEvent?($0) }
     }
 
-    @objc private func handleMockShot() {
-        onShotEvent?(Self.randomShot())
+    private static func randomTelemetryLine() -> String {
+        if Int.random(in: 0...3) == 0 {
+            return "MOTION \(String(format: "%.2f", Double.random(in: 0.25...3.35)))"
+        }
+
+        let zones = [
+            PaddleZone.top.rawValue,
+            PaddleZone.bottom.rawValue,
+            PaddleZone.left.rawValue,
+            PaddleZone.right.rawValue,
+            PaddleZone.centerFront.rawValue,
+            PaddleZone.centerBack.rawValue
+        ]
+        let zone = zones.randomElement() ?? PaddleZone.top.rawValue
+        let impactStrength = Int.random(in: 180...940)
+        let motionValue = String(format: "%.2f", Double.random(in: 0.25...3.35))
+        return "HIT \(zone) \(impactStrength) MOTION \(motionValue)"
+    }
+
+    @objc private func handleMockTelemetry() {
+        handleIncomingSerialText(Self.randomTelemetryLine() + "\n")
     }
 }

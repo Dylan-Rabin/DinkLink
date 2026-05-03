@@ -13,9 +13,10 @@ struct MainTabView: View {
         TabView {
             HomeView(
                 profile: profile,
-                sessions: displaySessions,
+                sessions: sessions,
                 bluetoothService: bluetoothService,
-                authService: authService
+                authService: authService,
+                onSessionSaved: onSessionSaved
             )
                 .tabItem {
                     Label("Home", systemImage: "house.fill")
@@ -44,7 +45,6 @@ struct MainTabView: View {
         }
         .tint(AppTheme.neon)
     }
-
 }
 
 struct HomeView: View {
@@ -155,25 +155,12 @@ struct HomeView: View {
             .task(id: profile.locationName) {
                 await viewModel.loadTodayWeather(for: profile.locationName)
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showCurrentSession = true
-                    } label: {
-                        Image(systemName: "figure.pickleball")
-                            .font(.system(size: 18, weight: .semibold))
-                    }
-                    .tint(AppTheme.neon)
-                    .accessibilityLabel("Open Current Session")
-                }
-            }
             .navigationDestination(isPresented: $showCurrentSession) {
                 CurrentSessionView(
                     profile: profile,
                     bluetoothService: bluetoothService,
                     authService: authService,
-                    persistenceService: SwiftDataPersistenceService(context: modelContext),
-                    onSessionSaved: onSessionSaved
+                    persistenceService: SwiftDataPersistenceService(context: modelContext)
                 )
             }
             .navigationDestination(item: $selectedMode) { mode in
@@ -185,15 +172,6 @@ struct HomeView: View {
                     persistenceService: SwiftDataPersistenceService(context: modelContext),
                     authService: authService,
                     onSessionSaved: onSessionSaved
-                )
-            }
-            .navigationDestination(isPresented: $showCurrentSession) {
-                // I route the top-right icon into the live gameplay screen.
-                CurrentSessionView(
-                    profile: profile,
-                    bluetoothService: bluetoothService,
-                    authService: authService,
-                    persistenceService: SwiftDataPersistenceService(context: modelContext)
                 )
             }
         }

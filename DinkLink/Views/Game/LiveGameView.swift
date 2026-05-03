@@ -21,19 +21,14 @@ struct LiveGameView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     hero
-                    liveHud
+                    metricSection(title: "Game Metrics", metrics: viewModel.activeMetrics)
+                    metricSection(title: "Session Summary", metrics: viewModel.summaryMetrics)
+                    recentHitsCard
                     playerSwitcher
-                    liveMetrics
                     sessionControls
 
-                    if viewModel.activeMode == .theRealDeal {
-                        rallyControls
-                    }
-
-                    scoreboard
-
                     if viewModel.isSessionComplete {
-                        completionCard
+                        metricSection(title: "Final Results", metrics: viewModel.sessionResultMetrics)
                     }
                 }
                 .padding(20)
@@ -59,107 +54,6 @@ struct LiveGameView: View {
         }
     }
 
-    // MARK: - NEW LIVE HUD
-
-    private var liveHud: some View {
-        let stats = viewModel.overallStats
-
-        return VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Live Stats")
-                    .dinkHeading(18, color: AppTheme.smoke)
-
-                Spacer()
-
-                Text(viewModel.activePlayerName)
-                    .dinkBody(12, color: AppTheme.ash)
-            }
-
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 10),
-                GridItem(.flexible(), spacing: 10)
-            ], spacing: 10) {
-                statTile(title: "Avg Swing", value: "\(formatted(stats.average)) mph")
-                statTile(title: "Max Swing", value: "\(formatted(stats.max)) mph")
-                statTile(title: "Sweet Spot", value: "\(formatted(stats.sweetSpot, decimals: 0))%")
-                statTile(title: "Hits", value: "\(stats.totalHits)")
-            }
-
-            modeSpecificLiveStat
-        }
-        .padding(18)
-        .background(
-            LinearGradient(
-                colors: [AppTheme.steel, AppTheme.graphite],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
-        )
-    }
-
-    private var modeSpecificLiveStat: some View {
-        Group {
-            switch viewModel.activeMode {
-            case .dinkSinks:
-                statRow(
-                    title: "Best Streak",
-                    value: "\(viewModel.playerMetrics[viewModel.activePlayerIndex].dinkBestStreak)"
-                )
-
-            case .volleyWallies:
-                statRow(
-                    title: "Valid Volleys",
-                    value: "\(viewModel.playerMetrics[viewModel.activePlayerIndex].validVolleys)"
-                )
-
-            case .theRealDeal:
-                statRow(
-                    title: "Rally Hits",
-                    value: "\(viewModel.currentRallyHits)"
-                )
-
-            case .pickleCup:
-                statRow(
-                    title: "Cup Stage",
-                    value: "\(viewModel.currentCupStageIndex + 1)/3"
-                )
-            }
-        }
-    }
-
-    private func statTile(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title.uppercased())
-                .dinkBody(10, color: AppTheme.ash)
-
-            Text(value)
-                .dinkHeading(16, color: AppTheme.neon)
-        }
-        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-        .padding(12)
-        .background(AppTheme.graphite.opacity(0.9))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-    }
-
-    private func statRow(title: String, value: String) -> some View {
-        HStack {
-            Text(title)
-                .dinkBody(13, color: AppTheme.ash)
-
-            Spacer()
-
-            Text(value)
-                .dinkBody(14, color: AppTheme.neon)
-        }
-    }
-
-    // MARK: - EXISTING CODE (UNCHANGED)
-
     private var hero: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(viewModel.roundBanner)
@@ -173,11 +67,13 @@ struct LiveGameView: View {
                     .dinkBody(14, color: AppTheme.ink)
             }
 
-            Text("Latest hit: \(formatted(viewModel.latestSwingSpeed)) mph")
-                .dinkBody(13, color: AppTheme.graphite)
-
-            Text(viewModel.latestFeedback)
-                .dinkBody(14, color: AppTheme.ink)
+            if let latestEvent = viewModel.latestEvent {
+                Text(GameEngine.feedback(for: latestEvent))
+                    .dinkBody(14, color: AppTheme.ink)
+            } else {
+                Text("Connect the paddle and start moving.")
+                    .dinkBody(14, color: AppTheme.ink)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
@@ -191,30 +87,21 @@ struct LiveGameView: View {
         .clipShape(RoundedRectangle(cornerRadius: 24))
     }
 
-    private var rankUpAwardResult: XPAwardResult? {
-        guard let awardResult = viewModel.latestXPAwardResult, awardResult.rankedUp else {
-            return nil
-        }
-
-        return awardResult
-    }
-
-    private var sessionControls: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Session Controls")
+    private func metricSection(title: String, metrics: [GameMetric]) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(title)
                 .dinkHeading(18, color: AppTheme.smoke)
 
-            Text(viewModel.activeMode.isTimed ? "Timed modes run on a single 1:00 countdown." : "End the session whenever the game is decided.")
-                .dinkBody(13, color: AppTheme.ash)
-
-            Button("Game Over") {
-                viewModel.endSessionEarly()
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 10),
+                GridItem(.flexible(), spacing: 10)
+            ], spacing: 10) {
+                ForEach(metrics) { metric in
+                    metricCard(metric)
+                }
             }
-            .buttonStyle(.bordered)
-            .tint(AppTheme.neon)
-            .disabled(viewModel.isSessionComplete)
         }
-        .padding()
+        .padding(18)
         .background(
             LinearGradient(
                 colors: [AppTheme.steel, AppTheme.graphite],
@@ -222,7 +109,72 @@ struct LiveGameView: View {
                 endPoint: .bottomTrailing
             )
         )
-        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func metricCard(_ metric: GameMetric) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(metric.title.uppercased())
+                .dinkBody(10, color: AppTheme.ash)
+
+            Text(metric.value)
+                .dinkHeading(16, color: AppTheme.neon)
+
+            if let subtitle = metric.subtitle {
+                Text(subtitle)
+                    .dinkBody(11, color: AppTheme.smoke)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
+        .padding(12)
+        .background(AppTheme.graphite.opacity(0.9))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var recentHitsCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Recent Hits")
+                .dinkHeading(18, color: AppTheme.smoke)
+
+            if viewModel.recentEvents.isEmpty {
+                Text("Controlled contacts, drives, and center hits will appear here.")
+                    .dinkBody(13, color: AppTheme.ash)
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(viewModel.recentEvents) { event in
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(GameEngine.zoneLabel(event.zone ?? .unknown))
+                                    .dinkBody(14, color: AppTheme.smoke)
+                                Text(event.timestamp.formatted(date: .omitted, time: .standard))
+                                    .dinkBody(11, color: AppTheme.ash)
+                            }
+
+                            Spacer()
+
+                            VStack(alignment: .trailing, spacing: 4) {
+                                Text(GameEngine.hitStrengthLabel(impactStrength: event.impactStrength ?? 0))
+                                    .dinkBody(13, color: AppTheme.neon)
+                                Text(GameEngine.motionLabel(motionValue: event.motionValue))
+                                    .dinkBody(12, color: AppTheme.ash)
+                            }
+                        }
+                        .padding(12)
+                        .background(AppTheme.graphite.opacity(0.9))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                }
+            }
+        }
+        .padding(18)
+        .background(
+            LinearGradient(
+                colors: [AppTheme.steel, AppTheme.graphite],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var playerSwitcher: some View {
@@ -247,17 +199,25 @@ struct LiveGameView: View {
         }
     }
 
-    private var liveMetrics: some View {
-        let stats = viewModel.overallStats
-
-        return VStack(alignment: .leading, spacing: 12) {
-            Text("Live Sensor Summary")
+    private var sessionControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Session Controls")
                 .dinkHeading(18, color: AppTheme.smoke)
 
-            metricRow(title: "Average Swing Speed", value: "\(formatted(stats.average)) mph")
-            metricRow(title: "Max Swing Speed", value: "\(formatted(stats.max)) mph")
-            metricRow(title: "Sweet Spot", value: "\(formatted(stats.sweetSpot, decimals: 0))%")
-            metricRow(title: "Total Hits", value: "\(stats.totalHits)")
+            Button(viewModel.isPaused ? "Resume" : "Pause") {
+                viewModel.togglePause()
+            }
+            .buttonStyle(.bordered)
+            .tint(AppTheme.neon)
+            .disabled(viewModel.isSessionComplete)
+
+            Button("Game Over") {
+                viewModel.endSessionEarly()
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(AppTheme.neon)
+            .foregroundStyle(AppTheme.ink)
+            .disabled(viewModel.isSessionComplete)
         }
         .padding()
         .background(
@@ -270,125 +230,16 @@ struct LiveGameView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
-    private var rallyControls: some View { EmptyView() }
-    private var scoreboard: some View { EmptyView() }
-    private var completionCard: some View { EmptyView() }
-
-    private func metricRow(title: String, value: String) -> some View {
-        HStack {
-            Text(title)
-                .dinkBody(14, color: AppTheme.smoke) // 👈 FIX
-
-            Spacer()
-
-            Text(value)
-                .dinkBody(14, color: AppTheme.neon)
+    private var rankUpAwardResult: XPAwardResult? {
+        guard let awardResult = viewModel.latestXPAwardResult, awardResult.rankedUp else {
+            return nil
         }
-    }
-
-    private func formatted(_ value: Double, decimals: Int = 1) -> String {
-        String(format: "%.\(decimals)f", value)
+        return awardResult
     }
 
     private func formattedTime(_ seconds: Int) -> String {
         let minutes = max(seconds, 0) / 60
         let remainingSeconds = max(seconds, 0) % 60
         return String(format: "%d:%02d", minutes, remainingSeconds)
-    }
-
-    // MARK: - Live HUD
-
-    private var liveHud: some View {
-        let stats = viewModel.overallStats
-
-        return VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Live Stats")
-                    .dinkHeading(18, color: AppTheme.smoke)
-
-                Spacer()
-
-                Text(viewModel.activePlayerName)
-                    .dinkBody(12, color: AppTheme.ash)
-            }
-
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 10),
-                GridItem(.flexible(), spacing: 10)
-            ], spacing: 10) {
-                statTile(title: "Avg Swing", value: "\(formatted(stats.average)) mph")
-                statTile(title: "Max Swing", value: "\(formatted(stats.max)) mph")
-                statTile(title: "Sweet Spot", value: "\(formatted(stats.sweetSpot, decimals: 0))%")
-                statTile(title: "Hits", value: "\(stats.totalHits)")
-            }
-
-            modeSpecificLiveStat
-        }
-        .padding(18)
-        .background(
-            LinearGradient(
-                colors: [AppTheme.steel, AppTheme.graphite],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
-        )
-    }
-
-    private var modeSpecificLiveStat: some View {
-        Group {
-            switch viewModel.activeMode {
-            case .dinkSinks:
-                statRow(
-                    title: "Best Streak",
-                    value: "\(viewModel.playerMetrics[viewModel.activePlayerIndex].dinkBestStreak)"
-                )
-            case .volleyWallies:
-                statRow(
-                    title: "Valid Volleys",
-                    value: "\(viewModel.playerMetrics[viewModel.activePlayerIndex].validVolleys)"
-                )
-            case .theRealDeal:
-                statRow(
-                    title: "Rally Hits",
-                    value: "\(viewModel.currentRallyHits)"
-                )
-            case .pickleCup:
-                statRow(
-                    title: "Cup Stage",
-                    value: "\(viewModel.currentCupStageIndex + 1)/3"
-                )
-            }
-        }
-    }
-
-    private func statTile(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title.uppercased())
-                .dinkBody(10, color: AppTheme.ash)
-
-            Text(value)
-                .dinkHeading(16, color: AppTheme.neon)
-        }
-        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-        .padding(12)
-        .background(AppTheme.graphite.opacity(0.9))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
-    private func statRow(title: String, value: String) -> some View {
-        HStack {
-            Text(title)
-                .dinkBody(13, color: AppTheme.ash)
-
-            Spacer()
-
-            Text(value)
-                .dinkBody(14, color: AppTheme.neon)
-        }
     }
 }

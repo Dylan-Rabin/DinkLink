@@ -29,7 +29,7 @@ struct InviteSetupView: View {
             if includeOpponent {
                 TextField("Opponent name", text: $opponentName)
                     .font(.dinkBody(15))
-                    .foregroundStyle(AppTheme.smoke)
+                    .foregroundStyle(.white)
                     .tint(AppTheme.neon)
                     .textInputAutocapitalization(.words)
                     .padding()

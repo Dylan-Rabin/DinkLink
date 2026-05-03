@@ -25,10 +25,17 @@ struct GameSessionSyncService {
             playerTwoName: session.playerTwoName,
             playerOneScore: session.playerOneScore,
             playerTwoScore: session.playerTwoScore,
-            averageSwingSpeed: session.averageSwingSpeed,
-            maxSwingSpeed: session.maxSwingSpeed,
-            sweetSpotPercentage: session.sweetSpotPercentage,
             totalHits: session.totalHits,
+            averageImpactStrength: session.averageImpactStrength,
+            maxImpactStrength: session.maxImpactStrength,
+            averageMotion: session.averageMotion,
+            centerHitPercentage: session.centerHitPercentage,
+            frontHits: session.frontHits,
+            backHits: session.backHits,
+            topHits: session.topHits,
+            bottomHits: session.bottomHits,
+            leftHits: session.leftHits,
+            rightHits: session.rightHits,
             winnerName: session.winnerName,
             longestStreak: session.longestStreak,
             totalValidVolleys: session.totalValidVolleys,
@@ -110,10 +117,17 @@ private struct GameSessionPayload: Encodable {
     let playerTwoName: String
     let playerOneScore: Int
     let playerTwoScore: Int
-    let averageSwingSpeed: Double
-    let maxSwingSpeed: Double
-    let sweetSpotPercentage: Double
     let totalHits: Int
+    let averageImpactStrength: Double
+    let maxImpactStrength: Int
+    let averageMotion: Double
+    let centerHitPercentage: Double
+    let frontHits: Int
+    let backHits: Int
+    let topHits: Int
+    let bottomHits: Int
+    let leftHits: Int
+    let rightHits: Int
     let winnerName: String
     let longestStreak: Int
     let totalValidVolleys: Int
@@ -131,10 +145,17 @@ private struct GameSessionPayload: Encodable {
         case playerTwoName = "player_two_name"
         case playerOneScore = "player_one_score"
         case playerTwoScore = "player_two_score"
-        case averageSwingSpeed = "average_swing_speed"
-        case maxSwingSpeed = "max_swing_speed"
-        case sweetSpotPercentage = "sweet_spot_percentage"
         case totalHits = "total_hits"
+        case averageImpactStrength = "average_impact_strength"
+        case maxImpactStrength = "max_impact_strength"
+        case averageMotion = "average_motion"
+        case centerHitPercentage = "center_hit_percentage"
+        case frontHits = "front_hits"
+        case backHits = "back_hits"
+        case topHits = "top_hits"
+        case bottomHits = "bottom_hits"
+        case leftHits = "left_hits"
+        case rightHits = "right_hits"
         case winnerName = "winner_name"
         case longestStreak = "longest_streak"
         case totalValidVolleys = "total_valid_volleys"
@@ -155,10 +176,17 @@ struct RemoteGameSession: Decodable {
     let playerTwoName: String
     let playerOneScore: Int
     let playerTwoScore: Int
-    let averageSwingSpeed: Double
-    let maxSwingSpeed: Double
-    let sweetSpotPercentage: Double
     let totalHits: Int
+    let averageImpactStrength: Double
+    let maxImpactStrength: Int
+    let averageMotion: Double
+    let centerHitPercentage: Double
+    let frontHits: Int
+    let backHits: Int
+    let topHits: Int
+    let bottomHits: Int
+    let leftHits: Int
+    let rightHits: Int
     let winnerName: String
     let longestStreak: Int
     let totalValidVolleys: Int
@@ -175,10 +203,17 @@ struct RemoteGameSession: Decodable {
         case playerTwoName = "player_two_name"
         case playerOneScore = "player_one_score"
         case playerTwoScore = "player_two_score"
-        case averageSwingSpeed = "average_swing_speed"
-        case maxSwingSpeed = "max_swing_speed"
-        case sweetSpotPercentage = "sweet_spot_percentage"
         case totalHits = "total_hits"
+        case averageImpactStrength = "average_impact_strength"
+        case maxImpactStrength = "max_impact_strength"
+        case averageMotion = "average_motion"
+        case centerHitPercentage = "center_hit_percentage"
+        case frontHits = "front_hits"
+        case backHits = "back_hits"
+        case topHits = "top_hits"
+        case bottomHits = "bottom_hits"
+        case leftHits = "left_hits"
+        case rightHits = "right_hits"
         case winnerName = "winner_name"
         case longestStreak = "longest_streak"
         case totalValidVolleys = "total_valid_volleys"
@@ -198,10 +233,17 @@ struct RemoteGameSession: Decodable {
             playerTwoName: playerTwoName,
             playerOneScore: playerOneScore,
             playerTwoScore: playerTwoScore,
-            averageSwingSpeed: averageSwingSpeed,
-            maxSwingSpeed: maxSwingSpeed,
-            sweetSpotPercentage: sweetSpotPercentage,
             totalHits: totalHits,
+            averageImpactStrength: averageImpactStrength,
+            maxImpactStrength: maxImpactStrength,
+            averageMotion: averageMotion,
+            centerHitPercentage: centerHitPercentage,
+            frontHits: frontHits,
+            backHits: backHits,
+            topHits: topHits,
+            bottomHits: bottomHits,
+            leftHits: leftHits,
+            rightHits: rightHits,
             winnerName: winnerName,
             longestStreak: longestStreak,
             totalValidVolleys: totalValidVolleys,

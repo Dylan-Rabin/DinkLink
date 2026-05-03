@@ -102,24 +102,24 @@ enum ProgressionService {
             breakdown.append(XPBreakdownItem(source: "Every 10 hits", xp: hitXP))
         }
 
-        if stats.sweetSpotPercentage >= 40 {
-            breakdown.append(XPBreakdownItem(source: "Sweet spot >= 40%", xp: 15))
+        if stats.centerHitPercentage >= 30 {
+            breakdown.append(XPBreakdownItem(source: "Center hits >= 30%", xp: 15))
         }
-        if stats.sweetSpotPercentage >= 60 {
-            breakdown.append(XPBreakdownItem(source: "Sweet spot >= 60%", xp: 15))
+        if stats.centerHitPercentage >= 45 {
+            breakdown.append(XPBreakdownItem(source: "Center hits >= 45%", xp: 15))
         }
-        if stats.sweetSpotPercentage >= 75 {
-            breakdown.append(XPBreakdownItem(source: "Sweet spot >= 75%", xp: 20))
+        if stats.centerHitPercentage >= 60 {
+            breakdown.append(XPBreakdownItem(source: "Center hits >= 60%", xp: 20))
         }
 
         if stats.playedWithFriend {
             breakdown.append(XPBreakdownItem(source: "Played with a friend", xp: 25))
         }
-        if stats.isNewSwingSpeedPB {
-            breakdown.append(XPBreakdownItem(source: "New swing speed personal best", xp: 25))
+        if stats.isNewImpactStrengthPB {
+            breakdown.append(XPBreakdownItem(source: "New impact strength personal best", xp: 25))
         }
-        if stats.isNewSweetSpotPB {
-            breakdown.append(XPBreakdownItem(source: "New sweet spot personal best", xp: 25))
+        if stats.isNewCenterHitPB {
+            breakdown.append(XPBreakdownItem(source: "New center-hit personal best", xp: 25))
         }
 
         return (breakdown.reduce(0) { $0 + $1.xp }, breakdown)
@@ -177,24 +177,24 @@ enum ProgressionService {
         let sortedSessions = sessions.sorted { $0.endDate < $1.endDate }
         var progression = buildUserProgression(userID: userID, totalXP: 0)
         var latestAward: XPAwardResult?
-        var previousTopSpeed = 0.0
-        var previousBestSweetSpot = 0.0
+        var previousMaxImpactStrength = 0
+        var previousBestCenterHitPercentage = 0.0
 
         for session in sortedSessions {
             let stats = SessionStats(
                 durationMinutes: max(1, Int(session.endDate.timeIntervalSince(session.startDate) / 60)),
                 totalHits: session.totalHits,
-                sweetSpotPercentage: session.sweetSpotPercentage,
+                centerHitPercentage: session.centerHitPercentage,
                 playedWithFriend: !session.playerTwoName.localizedCaseInsensitiveContains("solo"),
-                isNewSwingSpeedPB: session.maxSwingSpeed > previousTopSpeed,
-                isNewSweetSpotPB: session.sweetSpotPercentage > previousBestSweetSpot
+                isNewImpactStrengthPB: session.maxImpactStrength > previousMaxImpactStrength,
+                isNewCenterHitPB: session.centerHitPercentage > previousBestCenterHitPercentage
             )
 
             let award = applySessionXP(previous: progression, stats: stats)
             progression = award.updatedProgression
             latestAward = award
-            previousTopSpeed = max(previousTopSpeed, session.maxSwingSpeed)
-            previousBestSweetSpot = max(previousBestSweetSpot, session.sweetSpotPercentage)
+            previousMaxImpactStrength = max(previousMaxImpactStrength, session.maxImpactStrength)
+            previousBestCenterHitPercentage = max(previousBestCenterHitPercentage, session.centerHitPercentage)
         }
 
         return (progression, latestAward)

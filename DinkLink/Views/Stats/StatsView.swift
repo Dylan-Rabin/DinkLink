@@ -34,129 +34,16 @@ struct StatsView: View {
                             emptyStateCard
                         } else {
                             LazyVGrid(columns: statsGrid, spacing: 14) {
-                                summaryCard(title: "Avg Swing", value: "\(formatted(averageSwingSpeed)) mph")
-                                summaryCard(title: "Top Speed", value: "\(formatted(maxSwingSpeed)) mph")
-                                summaryCard(title: "Sweet Spot", value: "\(formatted(sweetSpotPercentage, decimals: 0))%")
-                                summaryCard(title: "Total Hits", value: "\(totalHits)")
+                                summaryCard(title: "Hit Strength", value: GameEngine.hitStrengthLabel(impactStrength: Int(averageImpactStrength.rounded())))
+                                summaryCard(title: "Peak Contact", value: GameEngine.hitStrengthLabel(impactStrength: maxImpactStrength))
+                                summaryCard(title: "Motion", value: GameEngine.motionLabel(motionValue: averageMotion))
+                                summaryCard(title: "Clean Hits", value: "\(formatted(centerHitPercentage, decimals: 0))%")
                             }
 
                             comparisonCard
-
-                            chartCard(
-                                title: "Swing Speed Trend",
-                                subtitle: "Average swing speed across your most recent sessions."
-                            ) {
-                                Chart(recentSessionPoints) { point in
-                                    AreaMark(
-                                        x: .value("Session", point.label),
-                                        y: .value("Average Swing Speed", point.averageSwingSpeed)
-                                    )
-                                    .interpolationMethod(.catmullRom)
-                                    .foregroundStyle(
-                                        LinearGradient(
-                                            colors: [AppTheme.neon.opacity(0.35), .clear],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-
-                                    LineMark(
-                                        x: .value("Session", point.label),
-                                        y: .value("Average Swing Speed", point.averageSwingSpeed)
-                                    )
-                                    .interpolationMethod(.catmullRom)
-                                    .foregroundStyle(AppTheme.neon)
-                                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
-
-                                    PointMark(
-                                        x: .value("Session", point.label),
-                                        y: .value("Average Swing Speed", point.averageSwingSpeed)
-                                    )
-                                    .foregroundStyle(AppTheme.smoke)
-                                }
-                                .chartYAxis {
-                                    AxisMarks(position: .leading)
-                                }
-                                .chartXAxis {
-                                    AxisMarks { _ in
-                                        AxisValueLabel()
-                                            .foregroundStyle(AppTheme.ash)
-                                    }
-                                }
-                                .frame(height: 220)
-                            }
-
-                            chartCard(
-                                title: "Sweet Spot Trend",
-                                subtitle: "Contact quality across recent sessions."
-                            ) {
-                                Chart(sweetSpotPoints) { point in
-                                    AreaMark(
-                                        x: .value("Session", point.label),
-                                        y: .value("Sweet Spot", point.sweetSpotPercentage)
-                                    )
-                                    .interpolationMethod(.catmullRom)
-                                    .foregroundStyle(
-                                        LinearGradient(
-                                            colors: [AppTheme.neon.opacity(0.25), .clear],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-
-                                    LineMark(
-                                        x: .value("Session", point.label),
-                                        y: .value("Sweet Spot", point.sweetSpotPercentage)
-                                    )
-                                    .interpolationMethod(.catmullRom)
-                                    .foregroundStyle(AppTheme.neon)
-                                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
-
-                                    PointMark(
-                                        x: .value("Session", point.label),
-                                        y: .value("Sweet Spot", point.sweetSpotPercentage)
-                                    )
-                                    .foregroundStyle(AppTheme.smoke)
-                                }
-                                .chartYAxis {
-                                    AxisMarks(position: .leading)
-                                }
-                                .chartXAxis {
-                                    AxisMarks { _ in
-                                        AxisValueLabel()
-                                            .foregroundStyle(AppTheme.ash)
-                                    }
-                                }
-                                .frame(height: 220)
-                            }
-
-                            chartCard(
-                                title: "Mode Breakdown",
-                                subtitle: "How your total hits are distributed across game modes."
-                            ) {
-                                Chart(modeSummaries) { summary in
-                                    BarMark(
-                                        x: .value("Hits", summary.totalHits),
-                                        y: .value("Mode", summary.mode.rawValue)
-                                    )
-                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                    .foregroundStyle(color(for: summary.mode))
-                                }
-                                .chartXAxis {
-                                    AxisMarks { _ in
-                                        AxisValueLabel()
-                                            .foregroundStyle(AppTheme.ash)
-                                    }
-                                }
-                                .chartYAxis {
-                                    AxisMarks { _ in
-                                        AxisValueLabel()
-                                            .foregroundStyle(AppTheme.ash)
-                                    }
-                                }
-                                .frame(height: 220)
-                            }
-
+                            impactTrendCard
+                            motionTrendCard
+                            zoneBreakdownCard
                             recentSessionsCard
                         }
                     }
@@ -177,7 +64,7 @@ struct StatsView: View {
             Text("\(profile.name) • \(sessions.count) recorded \(sessions.count == 1 ? "session" : "sessions")")
                 .dinkBody(13, color: AppTheme.ash)
 
-            Text("Track how your swing speed, contact quality, and game volume are trending.")
+            Text("Track how impact strength, motion, and hit placement are trending.")
                 .dinkBody(14, color: AppTheme.smoke)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -188,7 +75,7 @@ struct StatsView: View {
             Text("No sessions yet")
                 .dinkHeading(22, color: AppTheme.smoke)
 
-            Text("Finish a game and your charts will populate here.")
+            Text("Finish a game and your paddle charts will populate here.")
                 .dinkBody(14, color: AppTheme.ash)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -205,69 +92,87 @@ struct StatsView: View {
             if let latest = latestSession {
                 VStack(spacing: 12) {
                     comparisonRow(
-                        title: "Swing Speed",
-                        value: latest.averageSwingSpeed,
-                        baseline: averageSwingSpeed,
-                        unit: "mph"
+                        title: "Hit Strength",
+                        value: latest.averageImpactStrength,
+                        baseline: averageImpactStrength,
+                        unit: " strength"
                     )
 
                     comparisonRow(
-                        title: "Sweet Spot",
-                        value: latest.sweetSpotPercentage,
-                        baseline: sweetSpotPercentage,
-                        unit: "%"
-                    )
-
-                    comparisonRow(
-                        title: "Hits",
-                        value: Double(latest.totalHits),
-                        baseline: averageHitsPerSession,
+                        title: "Motion",
+                        value: latest.averageMotion,
+                        baseline: averageMotion,
                         unit: ""
                     )
+
+                    comparisonRow(
+                        title: "Clean Hits",
+                        value: latest.centerHitPercentage,
+                        baseline: centerHitPercentage,
+                        unit: "%"
+                    )
                 }
-            } else {
-                Text("No recent session to compare yet.")
-                    .dinkBody(13, color: AppTheme.ash)
             }
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppTheme.steel.opacity(0.92))
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
-        )
     }
 
-    private func comparisonRow(
-        title: String,
-        value: Double,
-        baseline: Double,
-        unit: String
-    ) -> some View {
-        let delta = value - baseline
-        let symbol = delta >= 0 ? "▲" : "▼"
-        let valueDecimals = unit == "%" ? 0 : 1
-        let deltaDecimals = unit == "%" ? 0 : 1
+    private var impactTrendCard: some View {
+        chartCard(
+            title: "Impact Trend",
+            subtitle: "Average hit quality across your recent sessions."
+        ) {
+            Chart(recentImpactPoints) { point in
+                LineMark(
+                    x: .value("Session", point.label),
+                    y: .value("Average Impact", point.value)
+                )
+                .foregroundStyle(AppTheme.neon)
+                .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
 
-        return HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .dinkBody(13, color: AppTheme.ash)
-
-                Text("Latest: \(formatted(value, decimals: valueDecimals))\(unit)")
-                    .dinkBody(14, color: AppTheme.smoke)
+                PointMark(
+                    x: .value("Session", point.label),
+                    y: .value("Average Impact", point.value)
+                )
+                .foregroundStyle(AppTheme.smoke)
             }
-
-            Spacer()
-
-            Text("\(symbol) \(formatted(abs(delta), decimals: deltaDecimals))\(unit)")
-                .dinkBody(14, color: delta >= 0 ? AppTheme.neon : AppTheme.ash)
+            .frame(height: 220)
         }
-        .padding(14)
-        .background(AppTheme.graphite.opacity(0.9))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var motionTrendCard: some View {
+        chartCard(
+            title: "Motion Trend",
+            subtitle: "Average movement intensity across your recent sessions."
+        ) {
+            Chart(recentMotionPoints) { point in
+                BarMark(
+                    x: .value("Session", point.label),
+                    y: .value("Average Motion", point.value)
+                )
+                .foregroundStyle(AppTheme.neon)
+            }
+            .frame(height: 220)
+        }
+    }
+
+    private var zoneBreakdownCard: some View {
+        chartCard(
+            title: "Zone Breakdown",
+            subtitle: "Lifetime totals by friendly paddle zones."
+        ) {
+            Chart(zoneSummaries) { summary in
+                BarMark(
+                    x: .value("Hits", summary.totalHits),
+                    y: .value("Zone", summary.label)
+                )
+                .foregroundStyle(AppTheme.neon)
+            }
+            .frame(height: 220)
+        }
     }
 
     private var recentSessionsCard: some View {
@@ -277,24 +182,23 @@ struct StatsView: View {
 
             VStack(spacing: 12) {
                 ForEach(recentSessions) { session in
-                    HStack(alignment: .top, spacing: 14) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(session.mode.rawValue)
-                                .dinkBody(14, color: AppTheme.smoke)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(session.mode.rawValue)
+                                    .dinkBody(14, color: AppTheme.smoke)
+                                Text(session.endDate.formatted(date: .abbreviated, time: .shortened))
+                                    .dinkBody(11, color: AppTheme.ash)
+                            }
 
-                            Text(session.endDate.formatted(date: .abbreviated, time: .shortened))
-                                .dinkBody(11, color: AppTheme.ash)
-                        }
-
-                        Spacer()
-
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text("Winner")
-                                .dinkBody(10, color: AppTheme.ash)
+                            Spacer()
 
                             Text(session.winnerName)
                                 .dinkBody(13, color: AppTheme.neon)
                         }
+
+                        Text("Hit Strength \(GameEngine.hitStrengthLabel(impactStrength: Int(session.averageImpactStrength.rounded()))) • Motion \(GameEngine.motionLabel(motionValue: session.averageMotion)) • Clean Hits \(formatted(session.centerHitPercentage, decimals: 0))%")
+                            .dinkBody(12, color: AppTheme.ash)
                     }
                     .padding(14)
                     .background(AppTheme.graphite.opacity(0.9))
@@ -306,78 +210,60 @@ struct StatsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppTheme.steel.opacity(0.92))
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
-        )
     }
 
     private var latestSession: StoredGameSession? {
         sessions.sorted { $0.endDate > $1.endDate }.first
     }
 
-    private var averageHitsPerSession: Double {
+    private var averageImpactStrength: Double {
         guard !sessions.isEmpty else { return 0 }
-        return Double(totalHits) / Double(sessions.count)
+        return sessions.reduce(0) { $0 + $1.averageImpactStrength } / Double(sessions.count)
     }
 
-    private var averageSwingSpeed: Double {
+    private var maxImpactStrength: Int {
+        sessions.map(\.maxImpactStrength).max() ?? 0
+    }
+
+    private var averageMotion: Double {
         guard !sessions.isEmpty else { return 0 }
-        return sessions.reduce(0) { $0 + $1.averageSwingSpeed } / Double(sessions.count)
+        return sessions.reduce(0) { $0 + $1.averageMotion } / Double(sessions.count)
     }
 
-    private var maxSwingSpeed: Double {
-        sessions.map(\.maxSwingSpeed).max() ?? 0
-    }
-
-    private var sweetSpotPercentage: Double {
+    private var centerHitPercentage: Double {
         guard !sessions.isEmpty else { return 0 }
-        return sessions.reduce(0) { $0 + $1.sweetSpotPercentage } / Double(sessions.count)
-    }
-
-    private var totalHits: Int {
-        sessions.reduce(0) { $0 + $1.totalHits }
+        return sessions.reduce(0) { $0 + $1.centerHitPercentage } / Double(sessions.count)
     }
 
     private var recentSessions: [StoredGameSession] {
         Array(sessions.sorted { $0.endDate < $1.endDate }.suffix(4)).reversed()
     }
 
-    private var recentSessionPoints: [SessionTrendPoint] {
+    private var recentImpactPoints: [TrendPoint] {
         Array(sessions.sorted { $0.endDate < $1.endDate }.suffix(6))
             .enumerated()
             .map { index, session in
-                SessionTrendPoint(
-                    id: session.id,
-                    label: "S\(index + 1)",
-                    averageSwingSpeed: session.averageSwingSpeed
-                )
+                TrendPoint(id: session.id, label: "S\(index + 1)", value: session.averageImpactStrength)
             }
     }
 
-    private var sweetSpotPoints: [SweetSpotTrendPoint] {
+    private var recentMotionPoints: [TrendPoint] {
         Array(sessions.sorted { $0.endDate < $1.endDate }.suffix(6))
             .enumerated()
             .map { index, session in
-                SweetSpotTrendPoint(
-                    id: session.id,
-                    label: "S\(index + 1)",
-                    sweetSpotPercentage: session.sweetSpotPercentage
-                )
+                TrendPoint(id: session.id, label: "S\(index + 1)", value: session.averageMotion)
             }
     }
 
-    private var modeSummaries: [ModeSummary] {
-        GameMode.allCases.compactMap { mode in
-            let modeSessions = sessions.filter { $0.mode == mode }
-            guard !modeSessions.isEmpty else { return nil }
-
-            return ModeSummary(
-                mode: mode,
-                totalHits: modeSessions.reduce(0) { $0 + $1.totalHits },
-                sessionCount: modeSessions.count
-            )
-        }
+    private var zoneSummaries: [ZoneSummary] {
+        [
+            ZoneSummary(label: "Top", totalHits: sessions.reduce(0) { $0 + $1.topHits }),
+            ZoneSummary(label: "Bottom", totalHits: sessions.reduce(0) { $0 + $1.bottomHits }),
+            ZoneSummary(label: "Left", totalHits: sessions.reduce(0) { $0 + $1.leftHits }),
+            ZoneSummary(label: "Right", totalHits: sessions.reduce(0) { $0 + $1.rightHits }),
+            ZoneSummary(label: "Front", totalHits: sessions.reduce(0) { $0 + $1.frontHits }),
+            ZoneSummary(label: "Back", totalHits: sessions.reduce(0) { $0 + $1.backHits })
+        ]
     }
 
     private func summaryCard(title: String, value: String) -> some View {
@@ -392,10 +278,47 @@ struct StatsView: View {
         .padding(18)
         .background(AppTheme.steel.opacity(0.9))
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
-        )
+    }
+
+    private func comparisonRow(
+        title: String,
+        value: Double,
+        baseline: Double,
+        unit: String
+    ) -> some View {
+        let delta = value - baseline
+        let symbol = delta >= 0 ? "▲" : "▼"
+        let latestLabel: String
+        let deltaLabel: String
+
+        if title == "Hit Strength" {
+            latestLabel = GameEngine.hitStrengthLabel(impactStrength: Int(value.rounded()))
+            deltaLabel = GameEngine.hitStrengthLabel(impactStrength: Int(abs(delta).rounded()))
+        } else if title == "Motion" {
+            latestLabel = GameEngine.motionLabel(motionValue: value)
+            deltaLabel = GameEngine.motionLabel(motionValue: abs(delta))
+        } else {
+            latestLabel = "\(formatted(value, decimals: unit == "%" ? 0 : 2))\(unit)"
+            deltaLabel = "\(formatted(abs(delta), decimals: unit == "%" ? 0 : 2))\(unit)"
+        }
+
+        return HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .dinkBody(13, color: AppTheme.ash)
+
+                Text("Latest: \(latestLabel)")
+                    .dinkBody(14, color: AppTheme.smoke)
+            }
+
+            Spacer()
+
+            Text("\(symbol) \(deltaLabel)")
+                .dinkBody(14, color: delta >= 0 ? AppTheme.neon : AppTheme.ash)
+        }
+        .padding(14)
+        .background(AppTheme.graphite.opacity(0.9))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func chartCard<Content: View>(
@@ -418,46 +341,21 @@ struct StatsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppTheme.steel.opacity(0.92))
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .stroke(AppTheme.smoke.opacity(0.08), lineWidth: 1)
-        )
     }
 
-    private func color(for mode: GameMode) -> Color {
-        switch mode {
-        case .dinkSinks:
-            return AppTheme.neon
-        case .volleyWallies:
-            return AppTheme.ash
-        case .theRealDeal:
-            return AppTheme.smoke
-        case .pickleCup:
-            return AppTheme.neon.opacity(0.75)
-        }
-    }
-
-    private func formatted(_ value: Double, decimals: Int = 1) -> String {
+    private func formatted(_ value: Double, decimals: Int = 2) -> String {
         String(format: "%.\(decimals)f", value)
     }
 }
 
-private struct SessionTrendPoint: Identifiable {
+private struct TrendPoint: Identifiable {
     let id: UUID
     let label: String
-    let averageSwingSpeed: Double
+    let value: Double
 }
 
-private struct SweetSpotTrendPoint: Identifiable {
-    let id: UUID
+private struct ZoneSummary: Identifiable {
+    let id = UUID()
     let label: String
-    let sweetSpotPercentage: Double
-}
-
-private struct ModeSummary: Identifiable {
-    let mode: GameMode
     let totalHits: Int
-    let sessionCount: Int
-
-    var id: GameMode { mode }
 }

@@ -44,6 +44,7 @@ import SwiftUI
     NavigationStack {
         InviteSetupView(
             primaryPlayer: ScreenshotPreviewData.profile.asPlayer,
+            profileID: ScreenshotPreviewData.profile.id,
             mode: .theRealDeal,
             bluetoothService: MockBluetoothService(),
             persistenceService: PreviewPersistenceService(),
@@ -119,10 +120,17 @@ private enum ScreenshotPreviewData {
             playerTwoName: "Avery",
             playerOneScore: 19,
             playerTwoScore: 15,
-            averageSwingSpeed: 24.7,
-            maxSwingSpeed: 41.2,
-            sweetSpotPercentage: 73.0,
             totalHits: 96,
+            averageImpactStrength: 742.0,
+            maxImpactStrength: 930,
+            averageMotion: 1.44,
+            centerHitPercentage: 38.0,
+            frontHits: 18,
+            backHits: 14,
+            topHits: 22,
+            bottomHits: 16,
+            leftHits: 12,
+            rightHits: 14,
             winnerName: "Dylan",
             longestStreak: 19,
             totalValidVolleys: 0,
@@ -136,10 +144,17 @@ private enum ScreenshotPreviewData {
             playerTwoName: "Jordan",
             playerOneScore: 5,
             playerTwoScore: 3,
-            averageSwingSpeed: 29.4,
-            maxSwingSpeed: 45.8,
-            sweetSpotPercentage: 68.0,
             totalHits: 72,
+            averageImpactStrength: 701.0,
+            maxImpactStrength: 910,
+            averageMotion: 1.62,
+            centerHitPercentage: 34.0,
+            frontHits: 11,
+            backHits: 13,
+            topHits: 17,
+            bottomHits: 10,
+            leftHits: 9,
+            rightHits: 12,
             winnerName: "Dylan",
             longestStreak: 0,
             totalValidVolleys: 0,
@@ -153,10 +168,17 @@ private enum ScreenshotPreviewData {
             playerTwoName: "Casey",
             playerOneScore: 28,
             playerTwoScore: 24,
-            averageSwingSpeed: 31.8,
-            maxSwingSpeed: 47.6,
-            sweetSpotPercentage: 76.0,
             totalHits: 118,
+            averageImpactStrength: 781.0,
+            maxImpactStrength: 955,
+            averageMotion: 1.71,
+            centerHitPercentage: 41.0,
+            frontHits: 21,
+            backHits: 18,
+            topHits: 24,
+            bottomHits: 20,
+            leftHits: 18,
+            rightHits: 17,
             winnerName: "Dylan",
             longestStreak: 0,
             totalValidVolleys: 28,
@@ -214,22 +236,48 @@ private enum ScreenshotPreviewData {
             bluetoothService: MockBluetoothService(),
             persistenceService: PreviewPersistenceService(),
             authService: signedInAuthService(),
-            progressionPersistenceService: PreviewProgressionPersistenceService()
+            progressionPersistenceService: PreviewProgressionPersistenceService(),
+            ownerProfileID: profile.id
         )
         viewModel.elapsedSeconds = 428
-        viewModel.latestSwingSpeed = 34.6
-        viewModel.latestFeedback = "Clean contact. Keep your paddle face steady."
-        viewModel.currentRallyHits = 7
+        viewModel.latestEvent = PaddleEvent(
+            type: .hit,
+            zone: .centerFront,
+            impactStrength: 846,
+            motionValue: 1.88
+        )
+        viewModel.latestFeedback = "Front Center • Hard • Quick"
         viewModel.playerMetrics[0].totalHits = 18
-        viewModel.playerMetrics[0].cumulativeSwingSpeed = 547.2
-        viewModel.playerMetrics[0].maxSwingSpeed = 41.4
-        viewModel.playerMetrics[0].sweetSpotHits = 12
+        viewModel.playerMetrics[0].totalImpactStrength = 13_356
+        viewModel.playerMetrics[0].maxImpactStrength = 914
+        viewModel.playerMetrics[0].cumulativeMotionValue = 29.4
+        viewModel.playerMetrics[0].centerFrontHits = 5
+        viewModel.playerMetrics[0].centerBackHits = 3
+        viewModel.playerMetrics[0].topHits = 4
+        viewModel.playerMetrics[0].bottomHits = 2
+        viewModel.playerMetrics[0].leftHits = 2
+        viewModel.playerMetrics[0].rightHits = 2
+        viewModel.playerMetrics[0].cleanHits = 8
+        viewModel.playerMetrics[0].currentRallyLength = 7
+        viewModel.playerMetrics[0].longestRally = 9
         viewModel.playerMetrics[0].points = 4
         viewModel.playerMetrics[1].totalHits = 16
-        viewModel.playerMetrics[1].cumulativeSwingSpeed = 476.8
-        viewModel.playerMetrics[1].maxSwingSpeed = 39.1
-        viewModel.playerMetrics[1].sweetSpotHits = 10
+        viewModel.playerMetrics[1].totalImpactStrength = 11_248
+        viewModel.playerMetrics[1].maxImpactStrength = 872
+        viewModel.playerMetrics[1].cumulativeMotionValue = 24.1
+        viewModel.playerMetrics[1].centerFrontHits = 2
+        viewModel.playerMetrics[1].centerBackHits = 4
+        viewModel.playerMetrics[1].topHits = 3
+        viewModel.playerMetrics[1].bottomHits = 2
+        viewModel.playerMetrics[1].leftHits = 3
+        viewModel.playerMetrics[1].rightHits = 2
+        viewModel.playerMetrics[1].cleanHits = 6
         viewModel.playerMetrics[1].points = 3
+        viewModel.recentEvents = [
+            PaddleEvent(type: .hit, zone: .centerFront, impactStrength: 846, motionValue: 1.88),
+            PaddleEvent(type: .hit, zone: .top, impactStrength: 711, motionValue: 1.42),
+            PaddleEvent(type: .hit, zone: .right, impactStrength: 690, motionValue: 1.35)
+        ]
         viewModel.rallies = [
             Rally(initiatingPlayerName: "Dylan", hits: 9, pointWinnerName: "Dylan"),
             Rally(initiatingPlayerName: "Jordan", hits: 6, pointWinnerName: "Jordan")
@@ -240,7 +288,7 @@ private enum ScreenshotPreviewData {
 }
 
 private struct PreviewPersistenceService: PersistenceServiceProtocol {
-    func seedSampleSessionsIfNeeded() {}
+    func seedDylanSessions(profileID: UUID) {}
 
     func fetchSavedSessions() -> [StoredGameSession] { ScreenshotPreviewData.sessions }
 
@@ -249,9 +297,11 @@ private struct PreviewPersistenceService: PersistenceServiceProtocol {
         locationName: String,
         dominantArm: DominantArm,
         skillLevel: SkillLevel,
-        paddleName: String
+        paddleName: String,
+        supabaseUserID: UUID?
     ) throws -> PlayerProfile {
         PlayerProfile(
+            id: supabaseUserID ?? UUID(),
             name: name,
             locationName: locationName,
             dominantArm: dominantArm,
